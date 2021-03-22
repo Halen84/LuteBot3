@@ -99,7 +99,15 @@ namespace LuteBot.UI
                 selectedSongs.Add((GuildSong)row.DataBoundItem);
             }
 
-            string searchString = searchBox.Text.ToLower();
+            string searchString = "";
+            if (!string.IsNullOrWhiteSpace(searchBox.Text))
+            {
+                searchString = searchBox.Text.ToLower();
+            }
+            else
+            {
+                return;
+            }
             SortableBindingList<GuildSong> filteredBindingList;
 
             // Populate the list with a Guild Library query

@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(SettingsForm));
             this.VersionLabel = new System.Windows.Forms.Label();
             this.UpdateLinkLabel = new System.Windows.Forms.LinkLabel();
@@ -41,16 +42,12 @@
             this.NoteConversionMode = new System.Windows.Forms.ComboBox();
             this.NoteConversionLabel = new System.Windows.Forms.Label();
             this.SettingsGroupBox = new System.Windows.Forms.GroupBox();
-            this.linkLabel1 = new System.Windows.Forms.LinkLabel();
             this.LiveMidiCheckBox = new System.Windows.Forms.CheckBox();
             this.OffAutoConsoleRadio = new System.Windows.Forms.RadioButton();
             this.AutoConsoleLabel = new System.Windows.Forms.Label();
             this.OldAutoConsoleRadio = new System.Windows.Forms.RadioButton();
             this.NewAutoConsoleRadio = new System.Windows.Forms.RadioButton();
             this.AdvancedGroupBox = new System.Windows.Forms.GroupBox();
-            this.linkLabel2 = new System.Windows.Forms.LinkLabel();
-            this.label2 = new System.Windows.Forms.Label();
-            this.instrumentsBox = new System.Windows.Forms.ComboBox();
             this.panel1 = new System.Windows.Forms.Panel();
             this.LowestNoteLabel = new System.Windows.Forms.Label();
             this.LowestNoteNumeric = new System.Windows.Forms.NumericUpDown();
@@ -58,10 +55,9 @@
             this.NoteCooldownLabel = new System.Windows.Forms.Label();
             this.NoteCountNumeric = new System.Windows.Forms.NumericUpDown();
             this.NoteCooldownNumeric = new System.Windows.Forms.NumericUpDown();
-            this.label1 = new System.Windows.Forms.Label();
-            this.outputDeviceBox = new System.Windows.Forms.ComboBox();
             this.label3 = new System.Windows.Forms.Label();
             this.guildLabel = new System.Windows.Forms.LinkLabel();
+            this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
             this.SettingsGroupBox.SuspendLayout();
             this.AdvancedGroupBox.SuspendLayout();
             this.panel1.SuspendLayout();
@@ -73,16 +69,17 @@
             // VersionLabel
             // 
             this.VersionLabel.AutoSize = true;
-            this.VersionLabel.Location = new System.Drawing.Point(-1, 471);
+            this.VersionLabel.Location = new System.Drawing.Point(-1, 400);
             this.VersionLabel.Name = "VersionLabel";
             this.VersionLabel.Size = new System.Drawing.Size(224, 13);
             this.VersionLabel.TabIndex = 0;
             this.VersionLabel.Text = "Mordhau Lute Bot [VERSION] made by Monty";
+            this.VersionLabel.Click += new System.EventHandler(this.VersionLabel_Click);
             // 
             // UpdateLinkLabel
             // 
             this.UpdateLinkLabel.AutoSize = true;
-            this.UpdateLinkLabel.Location = new System.Drawing.Point(229, 471);
+            this.UpdateLinkLabel.Location = new System.Drawing.Point(229, 400);
             this.UpdateLinkLabel.Name = "UpdateLinkLabel";
             this.UpdateLinkLabel.Size = new System.Drawing.Size(179, 13);
             this.UpdateLinkLabel.TabIndex = 1;
@@ -114,7 +111,7 @@
             // 
             // ReturnButton
             // 
-            this.ReturnButton.Location = new System.Drawing.Point(10, 438);
+            this.ReturnButton.Location = new System.Drawing.Point(10, 367);
             this.ReturnButton.Name = "ReturnButton";
             this.ReturnButton.Size = new System.Drawing.Size(120, 30);
             this.ReturnButton.TabIndex = 4;
@@ -124,7 +121,7 @@
             // 
             // ApplyButton
             // 
-            this.ApplyButton.Location = new System.Drawing.Point(277, 438);
+            this.ApplyButton.Location = new System.Drawing.Point(277, 367);
             this.ApplyButton.Name = "ApplyButton";
             this.ApplyButton.Size = new System.Drawing.Size(120, 30);
             this.ApplyButton.TabIndex = 5;
@@ -137,9 +134,9 @@
             this.SoundEffectsCheckBox.AutoSize = true;
             this.SoundEffectsCheckBox.Location = new System.Drawing.Point(6, 134);
             this.SoundEffectsCheckBox.Name = "SoundEffectsCheckBox";
-            this.SoundEffectsCheckBox.Size = new System.Drawing.Size(248, 17);
+            this.SoundEffectsCheckBox.Size = new System.Drawing.Size(93, 17);
             this.SoundEffectsCheckBox.TabIndex = 6;
-            this.SoundEffectsCheckBox.Text = "Rust Mode - Requires                 Port as Output";
+            this.SoundEffectsCheckBox.Text = "Sound Effects";
             this.SoundEffectsCheckBox.UseVisualStyleBackColor = true;
             this.SoundEffectsCheckBox.CheckedChanged += new System.EventHandler(this.SoundEffectsCheckBox_CheckedChanged);
             // 
@@ -190,7 +187,6 @@
             // 
             // SettingsGroupBox
             // 
-            this.SettingsGroupBox.Controls.Add(this.linkLabel1);
             this.SettingsGroupBox.Controls.Add(this.LiveMidiCheckBox);
             this.SettingsGroupBox.Controls.Add(this.OffAutoConsoleRadio);
             this.SettingsGroupBox.Controls.Add(this.AutoConsoleLabel);
@@ -207,17 +203,6 @@
             this.SettingsGroupBox.TabIndex = 12;
             this.SettingsGroupBox.TabStop = false;
             this.SettingsGroupBox.Text = "Settings";
-            // 
-            // linkLabel1
-            // 
-            this.linkLabel1.AutoSize = true;
-            this.linkLabel1.Location = new System.Drawing.Point(129, 135);
-            this.linkLabel1.Name = "linkLabel1";
-            this.linkLabel1.Size = new System.Drawing.Size(50, 13);
-            this.linkLabel1.TabIndex = 15;
-            this.linkLabel1.TabStop = true;
-            this.linkLabel1.Text = "LoopMidi";
-            this.linkLabel1.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.LinkLabel1_LinkClicked_1);
             // 
             // LiveMidiCheckBox
             // 
@@ -277,52 +262,15 @@
             // 
             // AdvancedGroupBox
             // 
-            this.AdvancedGroupBox.Controls.Add(this.linkLabel2);
-            this.AdvancedGroupBox.Controls.Add(this.label2);
-            this.AdvancedGroupBox.Controls.Add(this.instrumentsBox);
             this.AdvancedGroupBox.Controls.Add(this.panel1);
-            this.AdvancedGroupBox.Controls.Add(this.label1);
             this.AdvancedGroupBox.Controls.Add(this.NoteConversionLabel);
-            this.AdvancedGroupBox.Controls.Add(this.outputDeviceBox);
             this.AdvancedGroupBox.Controls.Add(this.NoteConversionMode);
             this.AdvancedGroupBox.Location = new System.Drawing.Point(10, 221);
             this.AdvancedGroupBox.Name = "AdvancedGroupBox";
-            this.AdvancedGroupBox.Size = new System.Drawing.Size(387, 211);
+            this.AdvancedGroupBox.Size = new System.Drawing.Size(387, 141);
             this.AdvancedGroupBox.TabIndex = 13;
             this.AdvancedGroupBox.TabStop = false;
             this.AdvancedGroupBox.Text = "Advanced Parameters";
-            // 
-            // linkLabel2
-            // 
-            this.linkLabel2.AutoSize = true;
-            this.linkLabel2.LinkArea = new System.Windows.Forms.LinkArea(22, 8);
-            this.linkLabel2.Location = new System.Drawing.Point(13, 69);
-            this.linkLabel2.Name = "linkLabel2";
-            this.linkLabel2.Size = new System.Drawing.Size(226, 17);
-            this.linkLabel2.TabIndex = 20;
-            this.linkLabel2.TabStop = true;
-            this.linkLabel2.Text = "Output must be set to LoopMidi port for Rust";
-            this.linkLabel2.UseCompatibleTextRendering = true;
-            this.linkLabel2.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.LinkLabel2_LinkClicked);
-            // 
-            // label2
-            // 
-            this.label2.AutoSize = true;
-            this.label2.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F);
-            this.label2.Location = new System.Drawing.Point(6, 89);
-            this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(163, 17);
-            this.label2.TabIndex = 18;
-            this.label2.Text = "Select Instrument Prefab";
-            // 
-            // instrumentsBox
-            // 
-            this.instrumentsBox.FormattingEnabled = true;
-            this.instrumentsBox.Location = new System.Drawing.Point(172, 88);
-            this.instrumentsBox.Name = "instrumentsBox";
-            this.instrumentsBox.Size = new System.Drawing.Size(209, 21);
-            this.instrumentsBox.TabIndex = 17;
-            this.instrumentsBox.SelectedIndexChanged += new System.EventHandler(this.InstrumentsBox_SelectedIndexChanged);
             // 
             // panel1
             // 
@@ -333,7 +281,7 @@
             this.panel1.Controls.Add(this.NoteCooldownLabel);
             this.panel1.Controls.Add(this.NoteCountNumeric);
             this.panel1.Controls.Add(this.NoteCooldownNumeric);
-            this.panel1.Location = new System.Drawing.Point(6, 112);
+            this.panel1.Location = new System.Drawing.Point(6, 42);
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(375, 93);
             this.panel1.TabIndex = 19;
@@ -344,9 +292,9 @@
             this.LowestNoteLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.LowestNoteLabel.Location = new System.Drawing.Point(6, 9);
             this.LowestNoteLabel.Name = "LowestNoteLabel";
-            this.LowestNoteLabel.Size = new System.Drawing.Size(109, 17);
+            this.LowestNoteLabel.Size = new System.Drawing.Size(107, 17);
             this.LowestNoteLabel.TabIndex = 12;
-            this.LowestNoteLabel.Text = "Lowest Note id :";
+            this.LowestNoteLabel.Text = "Lowest Note ID:";
             // 
             // LowestNoteNumeric
             // 
@@ -367,9 +315,9 @@
             this.NoteCountLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.NoteCountLabel.Location = new System.Drawing.Point(6, 35);
             this.NoteCountLabel.Name = "NoteCountLabel";
-            this.NoteCountLabel.Size = new System.Drawing.Size(87, 17);
+            this.NoteCountLabel.Size = new System.Drawing.Size(83, 17);
             this.NoteCountLabel.TabIndex = 13;
-            this.NoteCountLabel.Text = "Note Count :";
+            this.NoteCountLabel.Text = "Note Count:";
             // 
             // NoteCooldownLabel
             // 
@@ -377,9 +325,9 @@
             this.NoteCooldownLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.NoteCooldownLabel.Location = new System.Drawing.Point(6, 61);
             this.NoteCooldownLabel.Name = "NoteCooldownLabel";
-            this.NoteCooldownLabel.Size = new System.Drawing.Size(111, 17);
+            this.NoteCooldownLabel.Size = new System.Drawing.Size(107, 17);
             this.NoteCooldownLabel.TabIndex = 16;
-            this.NoteCooldownLabel.Text = "Note Cooldown :";
+            this.NoteCooldownLabel.Text = "Note Cooldown:";
             // 
             // NoteCountNumeric
             // 
@@ -392,6 +340,8 @@
             this.NoteCountNumeric.Name = "NoteCountNumeric";
             this.NoteCountNumeric.Size = new System.Drawing.Size(40, 20);
             this.NoteCountNumeric.TabIndex = 14;
+            this.toolTip1.SetToolTip(this.NoteCountNumeric, "Determines the amount of notes the lute can play. \r\nIf you reduce this below 24 y" +
+        "ou will begin to hear a reduced range of notes in the game.");
             this.NoteCountNumeric.ValueChanged += new System.EventHandler(this.NoteCountNumeric_ValueChanged);
             // 
             // NoteCooldownNumeric
@@ -405,31 +355,14 @@
             this.NoteCooldownNumeric.Name = "NoteCooldownNumeric";
             this.NoteCooldownNumeric.Size = new System.Drawing.Size(40, 20);
             this.NoteCooldownNumeric.TabIndex = 15;
+            this.toolTip1.SetToolTip(this.NoteCooldownNumeric, "The time in milliseconds before another note is allowed to play.\r\nIf you find tha" +
+        "t notes are being skipped, try reducing this.");
             this.NoteCooldownNumeric.ValueChanged += new System.EventHandler(this.NoteCooldownNumeric_ValueChanged);
-            // 
-            // label1
-            // 
-            this.label1.AutoSize = true;
-            this.label1.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label1.Location = new System.Drawing.Point(6, 45);
-            this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(106, 17);
-            this.label1.TabIndex = 18;
-            this.label1.Text = "Output Device :";
-            // 
-            // outputDeviceBox
-            // 
-            this.outputDeviceBox.FormattingEnabled = true;
-            this.outputDeviceBox.Location = new System.Drawing.Point(172, 45);
-            this.outputDeviceBox.Name = "outputDeviceBox";
-            this.outputDeviceBox.Size = new System.Drawing.Size(209, 21);
-            this.outputDeviceBox.TabIndex = 17;
-            this.outputDeviceBox.SelectedIndexChanged += new System.EventHandler(this.OutputDeviceBox_SelectedIndexChanged);
             // 
             // label3
             // 
             this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(0, 484);
+            this.label3.Location = new System.Drawing.Point(-1, 413);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(107, 13);
             this.label3.TabIndex = 14;
@@ -440,7 +373,7 @@
             this.guildLabel.AutoSize = true;
             this.guildLabel.LinkArea = new System.Windows.Forms.LinkArea(15, 31);
             this.guildLabel.LinkColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(0)))), ((int)(((byte)(64)))));
-            this.guildLabel.Location = new System.Drawing.Point(0, 497);
+            this.guildLabel.Location = new System.Drawing.Point(0, 426);
             this.guildLabel.Name = "guildLabel";
             this.guildLabel.Size = new System.Drawing.Size(167, 17);
             this.guildLabel.TabIndex = 15;
@@ -453,15 +386,15 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(409, 516);
+            this.ClientSize = new System.Drawing.Size(409, 442);
             this.Controls.Add(this.guildLabel);
-            this.Controls.Add(this.label3);
             this.Controls.Add(this.AdvancedGroupBox);
             this.Controls.Add(this.SettingsGroupBox);
-            this.Controls.Add(this.ApplyButton);
+            this.Controls.Add(this.label3);
             this.Controls.Add(this.ReturnButton);
             this.Controls.Add(this.UpdateLinkLabel);
             this.Controls.Add(this.VersionLabel);
+            this.Controls.Add(this.ApplyButton);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MaximizeBox = false;
@@ -508,14 +441,9 @@
         private System.Windows.Forms.Label AutoConsoleLabel;
         private System.Windows.Forms.RadioButton OffAutoConsoleRadio;
         private System.Windows.Forms.CheckBox LiveMidiCheckBox;
-        private System.Windows.Forms.Label label1;
-        private System.Windows.Forms.ComboBox outputDeviceBox;
-        private System.Windows.Forms.Label label2;
-        private System.Windows.Forms.ComboBox instrumentsBox;
         private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.LinkLabel guildLabel;
-        private System.Windows.Forms.LinkLabel linkLabel1;
-        private System.Windows.Forms.LinkLabel linkLabel2;
+        private System.Windows.Forms.ToolTip toolTip1;
     }
 }

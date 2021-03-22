@@ -19,14 +19,12 @@ namespace LuteBot.UI
     {
         TrackSelectionManager trackSelectionManager;
         MordhauOutDevice _mordhauOut;
-        RustOutDevice _rustOut;
 
         // We need only one out device, might as well use rust, but take both for now cuz why not, feels unfair
         // Though they both get updated with the same values at the same time, for what we're doing
-        public TrackSelectionForm(TrackSelectionManager trackSelectionManager, MordhauOutDevice mordhauOut, RustOutDevice rustOut)
+        public TrackSelectionForm(TrackSelectionManager trackSelectionManager, MordhauOutDevice mordhauOut)
         {
             _mordhauOut = mordhauOut;
-            _rustOut = rustOut;
             this.trackSelectionManager = trackSelectionManager;
             trackSelectionManager.TrackChanged += new EventHandler(TrackChangedHandler);
             this.Load += TrackSelectionForm_Load;
@@ -297,25 +295,6 @@ namespace LuteBot.UI
                         labelY += labelHeight;
                     }
 
-                }
-                else
-                {
-                    // We want to add labels of what the draggableRect is at too (and lock it when it drags)
-                    // So we need to find our note relative to that... 
-                    // So just get _rustOut.LowMidiNoteId + trackSelectionManager.NoteOffset - this is the 'note' it starts at
-                    int midiLowest = _rustOut.LowMidiNoteId + trackSelectionManager.NoteOffset;
-                    int midiHighest = _rustOut.HighMidiNoteId + trackSelectionManager.NoteOffset;
-                    if (note >= midiLowest && note <= midiHighest)
-                    {
-                        // We can consider showing labels...
-                        // So then, (note - midiLowest) is how many notes out we are from midiLowest
-                        // So midiLowest + (note - midiLowest) is our effective note here
-                        int effectiveNote = _rustOut.LowMidiNoteId + (note - midiLowest);
-                        if (effectiveNote % 12 == 0)
-                        {
-                            g.DrawString($"C{effectiveNote / 12}", gridFont, draggableRectBrush, x - xPad, height + padding + labelHeight);
-                        }
-                    }
                 }
 
 

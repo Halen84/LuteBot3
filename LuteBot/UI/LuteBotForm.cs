@@ -315,7 +315,7 @@ namespace LuteBot
             if (ConfigManager.GetBooleanProperty(PropertyItem.TrackSelection))
             {
                 var midiPlayer = player as MidiPlayer;
-                trackSelectionForm = new TrackSelectionForm(trackSelectionManager, midiPlayer.mordhauOutDevice, midiPlayer.rustOutDevice);
+                trackSelectionForm = new TrackSelectionForm(trackSelectionManager, midiPlayer.mordhauOutDevice);
                 Point coords = WindowPositionUtils.CheckPosition(ConfigManager.GetCoordsProperty(PropertyItem.TrackSelectionPos));
                 trackSelectionForm.Show();
                 trackSelectionForm.Top = coords.Y;
@@ -546,7 +546,7 @@ namespace LuteBot
             if (trackSelectionForm == null || trackSelectionForm.IsDisposed)
             {
                 var midiPlayer = player as MidiPlayer;
-                trackSelectionForm = new TrackSelectionForm(trackSelectionManager, midiPlayer.mordhauOutDevice, midiPlayer.rustOutDevice);
+                trackSelectionForm = new TrackSelectionForm(trackSelectionManager, midiPlayer.mordhauOutDevice);
                 Point coords = WindowPositionUtils.CheckPosition(ConfigManager.GetCoordsProperty(PropertyItem.TrackSelectionPos));
                 trackSelectionForm.Show();
                 trackSelectionForm.Top = coords.Y;
@@ -651,146 +651,6 @@ namespace LuteBot
             { Totebots.Percussion, "4c6e27a2-4c35-4df3-9794-5e206fef9012" }
         };
 
-        private void exportToScrapMechanicToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            // Should save a .json file with scrap mechanic info to play the song
-            // This is going to be long and hard.
-
-
-            // Pitch on the totebot heads is a value from 0.0 to 1.0, and covers two octaves (0-23)
-            // 1 tick is 25ms
-
-            // Make all the axes and positions match, except the switch, for a tiny version
-
-            // So the way we handle this, if we construct a List<SMNote> of each note in order
-            // We just pass it in to our function that we just wrote and get this whole thing out
-
-            // We need to convert Midi ticks to game ticks, where a game tick is 25ms
-            // Formula: ms = 60000 / (BPM * PPQ)
-            // BPM and PPQ should be in the player somewhere - PPQ = Division, BPM = Tempo
-
-            // Let's popup a settings window...
-
-            ScrapMechanicConfigForm configForm = new ScrapMechanicConfigForm(player);
-            var dialogResult = configForm.ShowDialog(this);
-            if (dialogResult != DialogResult.OK)
-                return;
-
-
-            List<SMNote> onNotes = new List<SMNote>();
-            List<SMNote> notes = new List<SMNote>();
-            toteHeads = new List<ToteHead>();
-            durationTimers = new List<SMTimer>();
-            startTimers = new List<SMTimer>();
-            extensionTimers = new List<SMTimer>();
-
-            // Enforce loading of filtering values
-            player.mordhauOutDevice.UpdateNoteIdBounds();
-            int tempo = player.sequence.FirstTempo;
-
-            if (!string.IsNullOrEmpty(currentTrackName))
-                foreach (var track in player.sequence)
-                {
-                    foreach (var note in track.Iterator())
-                    {
-                        if (note.MidiMessage.MessageType == MessageType.Channel)
-                        {
-                            ChannelMessage cm = note.MidiMessage as ChannelMessage;
-                            double msPerTick = tempo / player.sequence.Division; // tempo may change as we move along, watch for issues with getting this now
-
-                            if (cm.Command == ChannelCommand.NoteOn && cm.Data2 > 0) // Velocity > 0
-                            {
-                                int gameTicksStart = (int)Math.Ceiling(note.AbsoluteTicks * msPerTick / 1000 / 25); // Hopefully we don't have to turn this into seconds also
-
-                                // Temporarily...
-                                //if (gameTicksStart > 800)
-                                //    break;
-
-
-                                var filtered = player.mordhauOutDevice.FilterNote(cm, 0);
-
-                                var newNote = new SMNote()
-                                {
-                                    channel = cm.MidiChannel,
-                                    midiEvent = note,
-                                    startTicks = gameTicksStart,
-                                    noteNum = filtered.Data1 - player.mordhauOutDevice.LowNoteId,
-                                    velocity = filtered.Data2,
-                                    flavor = (TotebotTypes)configForm.TrackTypeDict[filtered.MidiChannel],
-                                    instrument = (Totebots)configForm.TrackCategoryDict[filtered.MidiChannel],
-                                    internalId = onNotes.Count + notes.Count, // I don't think I use this, oh well
-                                    filtered = filtered,
-                                    durationTicks = -1
-                                };
-
-                                // And the duration... we need a NoteOff before we can know
-                                onNotes.Add(newNote);
-                                // But we need to add it now to preserve the order... 
-                                // We'll just sort them afterward
-                            }
-                            else if (cm.Command == ChannelCommand.NoteOff || (cm.Command == ChannelCommand.NoteOn && cm.Data2 == 0))
-                            {
-                                var onNote = onNotes.Where(n => ((ChannelMessage)n.midiEvent.MidiMessage).MidiChannel == cm.MidiChannel && ((ChannelMessage)n.midiEvent.MidiMessage).Data1 == cm.Data1).FirstOrDefault();
-
-                                // Same channel and note... must be us
-                                if (onNote != null)
-                                {
-                                    int gameTicksDuration = (int)Math.Ceiling((note.AbsoluteTicks - onNote.midiEvent.AbsoluteTicks) * msPerTick / 1000 / 25);
-                                    // Everything was a bit too fast, a ceil should help
-                                    onNotes.Remove(onNote);
-                                    if (onNote.filtered.Data2 > 0) // Still not muted
-                                    {
-                                        onNote.durationTicks = gameTicksDuration;
-                                        notes.Add(onNote);
-                                    }
-
-                                }
-                            }
-                        }
-                        else if (note.MidiMessage.MessageType == MessageType.Meta)
-                        {
-                            MetaMessage mm = note.MidiMessage as MetaMessage;
-                            if (mm.MetaType == MetaType.Tempo)
-                            {
-                                // As for getting the actual Tempo out of it... 
-                                var bytes = mm.GetBytes();
-                                // Apparently it's... backwards?  Different endianness or whatever...
-                                byte[] tempoBytes = new byte[4];
-                                tempoBytes[2] = bytes[0];
-                                tempoBytes[1] = bytes[1];
-                                tempoBytes[0] = bytes[2];
-                                tempo = BitConverter.ToInt32(tempoBytes, 0);
-                            }
-                        }
-                    }
-                }
-
-            // Now sort notes list by the startTicks ... hopefully ascending
-            notes.Sort(new Comparison<SMNote>((n, m) => n.startTicks - m.startTicks));
-            // And make the files
-            Guid guid = Guid.NewGuid();
-            string baseDir = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + Path.DirectorySeparatorChar + "SM Blueprints" + Path.DirectorySeparatorChar + Path.GetFileNameWithoutExtension(currentTrackName) + Path.DirectorySeparatorChar + guid + Path.DirectorySeparatorChar;
-            Directory.CreateDirectory(baseDir);
-
-
-            using (StreamWriter writer = new StreamWriter(baseDir + Path.DirectorySeparatorChar + "blueprint.json"))
-            {
-                writer.Write(getSMBlueprint(notes));
-            }
-            using (StreamWriter writer = new StreamWriter(baseDir + "description.json"))
-            {
-                writer.WriteLine("{");
-                writer.WriteLine("\"description\" : \"" + Path.GetFileNameWithoutExtension(currentTrackName) + " MIDI converted using LuteBot3\",");
-                writer.WriteLine("\"localId\" : \"" + guid + "\",");
-                writer.WriteLine("\"name\" : \"" + Path.GetFileNameWithoutExtension(currentTrackName) + "\",");
-                writer.WriteLine("\"type\" : \"Blueprint\",");
-                writer.WriteLine("\"version\" : 0");
-                writer.WriteLine("}");
-            }
-            Process.Start(baseDir);
-            if (!configForm.IsDisposed)
-                configForm.Dispose();
-        }
 
         public class SMNote
         {
@@ -1070,133 +930,12 @@ namespace LuteBot
             // And finish the json
             sb.Append("]}],\"version\":3}");
             return sb.ToString();
-            /*
+        }
 
-
-
-
-
-
-
-            for (int i = 0; i < notes.Count; i++)
-            {
-                SMNote note = notes[i];
-
-                int startSeconds = 0;
-                if (note.startTicks > 40) // 40 game ticks/second
-                {
-                    startSeconds = note.startTicks / 40;
-                    note.startTicks = note.startTicks % 40;
-                }
-
-                startSeconds -= 60 * (timerComponents.Count - 1); // Remove 60 seconds for each timer we've already made
-
-                if (startSeconds >= 60)
-                {
-                    timerComponents.Add(new List<int>());
-                    startSeconds -= 60;
-                    // We've hit the limit for how much our timers can delay
-                    // Increase to the next timer and decrement a minute
-                }
-
-                // timerComponents should never be empty... 
-                timerComponents[timerComponents.Count - 1].Add(i * 5);
-
-                double pitch = note.noteNum / 24f; // 25 notes, we have 3 C's oddly enough... 
-                                                   // Build our objects... 
-
-                // Here's our base Totebot head, id i*5
-                //sb.Append("{\"color\":\"49642d\",\"controller\":{\"audioIndex\":" + (int)note.flavor + ",\"controllers\":null,\"id\":" + (i * 5) + ",\"joints\":null,\"pitch\":" + pitch + ",\"volume\":100},\"pos\":{\"x\":" + posX + ",\"y\":" + posY + ",\"z\":" + posZ + "},\"shapeId\":\"" + TotebotIds[note.instrument] + "\",\"xaxis\":" + xAxis + ",\"zaxis\":" + zAxis + "},");
-
-
-
-
-                
-
-
-
-
-
-                // Logic (And) - Links to Totebot head, id i*5+1
-                sb.Append("{\"color\":\"df7f01\",\"controller\":{\"active\":false,\"controllers\":[{\"id\":" + totehead.Id + "}],\"id\":" + (i * 5 + 1) + ",\"joints\":null,\"mode\":0},\"pos\":{\"x\":" + posX + ",\"y\":" + posY + ",\"z\":" + posZ + "},\"shapeId\":\"9f0f56e8-2c31-4d83-996c-d00a9b296c3f\",\"xaxis\":" + xAxis + ",\"zaxis\":" + zAxis + "},");
-                // Logic (Nor) - Links to Logic And, id i*5+2
-                sb.Append("{\"color\":\"df7f01\",\"controller\":{\"active\":true,\"controllers\":[{\"id\":" + (i * 5 + 1) + "}],\"id\":" + (i * 5 + 2) + ",\"joints\":null,\"mode\":4},\"pos\":{\"x\":" + posX + ",\"y\":" + posY + ",\"z\":" + posZ + "},\"shapeId\":\"9f0f56e8-2c31-4d83-996c-d00a9b296c3f\",\"xaxis\":" + xAxis + ",\"zaxis\":" + zAxis + "},");
-                // Timer - How long to play current note - links to our Nor, id i*5+3
-                sb.Append("{\"color\":\"df7f01\",\"controller\":{\"active\":false,\"controllers\":[{\"id\":" + (i * 5 + 2) + "}],\"id\":" + (i * 5 + 3) + ",\"joints\":null,\"seconds\":0,\"ticks\":" + note.durationTicks + "},\"pos\":{\"x\":" + posX + ",\"y\":" + posY + ",\"z\":" + posZ + "},\"shapeId\":\"8f7fd0e7-c46e-4944-a414-7ce2437bb30f\",\"xaxis\":" + xAxis + ",\"zaxis\":" + zAxis + "},");
-                // Timer - How long to delay before playing our note - links to our DurationTimer and our And, id i*5+4
-                sb.Append("{\"color\":\"df7f01\",\"controller\":{\"active\":false,\"controllers\":[{\"id\":" + (i * 5 + 1) + "},{\"id\":" + (i * 5 + 3) + "}],\"id\":" + (i * 5 + 4) + ",\"joints\":null,\"seconds\":" + startSeconds + ",\"ticks\":" + note.startTicks + "},\"pos\":{\"x\":" + posX + ",\"y\":" + posY + ",\"z\":" + posZ + "},\"shapeId\":\"8f7fd0e7-c46e-4944-a414-7ce2437bb30f\",\"xaxis\":" + xAxis + ",\"zaxis\":" + zAxis + "},");
-            }
-            // Slap a switch on at the end
-            // And all the intermediate timers we need
-
-            // Switch - links to every start Timer at i*5+4
-            sb.Append("{\"color\":\"df7f01\",\"controller\":{\"active\":false,\"controllers\":[");
-            for (int i = 0; i < timerComponents[0].Count; i++) // Guaranteed to run at least once
-            {
-                if (i != 0)
-                    sb.Append(",");
-                sb.Append("{\"id\":" + (timerComponents[0][i] + 4) + "}"); // timerComponents is our base, +4 is our start Timer that it links to
-            }
-            // TODO: Then also links to every And no matter what so it actually works
-            for(int i = 0; i < notes.Count; i++)
-            {
-                // These are id i*5+1
-                sb.Append(",{\"id\":" + (i * 5 + 1) + "}");
-            }
-
-            // Link it to only the first timer we're about to make, if any, id notes.Count*5+1
-            if (timerComponents.Count > 1)
-                sb.Append(",{\"id\":" + (notes.Count * 5 + 1) + "}");
-            // Finish the switch
-            sb.Append("],\"id\":" + (notes.Count * 5) + ",\"joints\":null},\"pos\":{\"x\":0,\"y\":0,\"z\":1},\"shapeId\":\"7cf717d7-d167-4f2d-a6e7-6b2c70aa3986\",\"xaxis\":3,\"zaxis\":-1}");
-
-            // Make any timers
-            for (int i = 1; i < timerComponents.Count; i++)
-            {
-                sb.Append(",{\"color\":\"df7f01\",\"controller\":{\"active\":false,\"controllers\":[");
-                // Iterate the inner list
-                bool first = true;
-                foreach (int j in timerComponents[i])
-                {
-                    if (first)
-                    {
-                        first = false;
-                    }
-                    else
-                        sb.Append(",");
-                    sb.Append("{\"id\":" + (j + 4) + "}"); // Attach to the timer of the target
-                }
-                // If there's another timer, link to it
-                if (i < timerComponents.Count - 1)
-                    sb.Append(",{\"id\":" + (notes.Count * 5 + i + 1) + "}");
-                // Finish the timer for 60 seconds
-                sb.Append("],\"id\":" + (notes.Count * 5 + i) + ",\"joints\":null,\"seconds\":60,\"ticks\":0},\"pos\":{\"x\":" + posX + ",\"y\":" + posY + ",\"z\":" + posZ + "},\"shapeId\":\"8f7fd0e7-c46e-4944-a414-7ce2437bb30f\",\"xaxis\":" + xAxis + ",\"zaxis\":" + zAxis + "}");
-            }
-
-            // Make the totebot heads and OR gates
-            // Currently everything points to the totebot.Id, which we'll actually make the OR gates
-            // And then heads themselves get Ids starting at notes.Count*5 + timerComponents.Count
-
-            var random = new Random();
-            for (int i = 0; i < toteHeads.Count; i++)
-            {
-                int headId = notes.Count * 5 + timerComponents.Count + i;
-                var totehead = toteHeads[i];
-                // Make an OR gate
-                // Logic (Or) - Links to Totebot head
-                sb.Append(",{\"color\":\"df7f01\",\"controller\":{\"active\":false,\"controllers\":[{\"id\":" + headId + "}],\"id\":" + totehead.Id + ",\"joints\":null,\"mode\":1},\"pos\":{\"x\":" + posX + ",\"y\":" + posY + ",\"z\":" + posZ + "},\"shapeId\":\"9f0f56e8-2c31-4d83-996c-d00a9b296c3f\",\"xaxis\":" + xAxis + ",\"zaxis\":" + zAxis + "}");
-
-                // Make the head.  You can actually see the color poke through when it plays
-                // So let's make the color black to white dependent on the pitch
-                
-                var color = String.Format("{0:X6}", 0x1000000 * totehead.Note / 24f).ToLower(); // = ex "a197b9"
-                sb.Append(",{\"color\":\"" + color + "\",\"controller\":{\"audioIndex\":" + (int)totehead.Flavor + ",\"controllers\":null,\"id\":" + headId + ",\"joints\":null,\"pitch\":" + (totehead.Note / 24f) + ",\"volume\":50},\"pos\":{\"x\":" + posX + ",\"y\":" + (posY) + ",\"z\":" + (posZ) + "},\"shapeId\":\"" + TotebotIds[totehead.Instrument] + "\",\"xaxis\":" + xAxis + ",\"zaxis\":" + zAxis + "}");
-            }
-
-
-            sb.Append("]}],\"version\":3}");
-            return sb.ToString();
-            */
+        private void helpToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            HelpForm helpForm = new HelpForm(this);
+            helpForm.Show();
         }
     }
 }

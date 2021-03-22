@@ -18,7 +18,6 @@ namespace LuteBot.Core.Midi
         public Sequence sequence;
         private Sequencer sequencer;
         public MordhauOutDevice mordhauOutDevice;
-        public RustOutDevice rustOutDevice;
         public TrackSelectionManager trackSelectionManager;
 
         private bool isPlaying;
@@ -27,7 +26,6 @@ namespace LuteBot.Core.Midi
         {
             isPlaying = false;
             mordhauOutDevice = new MordhauOutDevice();
-            rustOutDevice = new RustOutDevice();
             this.trackSelectionManager = trackSelectionManager;
             sequence = new Sequence
             {
@@ -315,8 +313,6 @@ namespace LuteBot.Core.Midi
                 base.LoadCompleted(this, e);
                 mordhauOutDevice.HighMidiNoteId = sequence.MaxNoteId;
                 mordhauOutDevice.LowMidiNoteId = sequence.MinNoteId;
-                rustOutDevice.HighMidiNoteId = sequence.MaxNoteId;
-                rustOutDevice.LowMidiNoteId = sequence.MinNoteId;
             }
         }
 
@@ -352,61 +348,11 @@ namespace LuteBot.Core.Midi
             {
                 if (ConfigManager.GetBooleanProperty(PropertyItem.SoundEffects) && !disposed)
                 {
-                    var filtered = trackSelectionManager.FilterMidiEvent(e.Message, e.TrackId);
-                    //if (e.Message.Data2 > 0) // Avoid spamming server with 0 velocity notes
-                    //{
-
-                    //Melanchall.DryWetMidi.Core.NoteEvent nEvent;
-                    // I don't know how to do this without Melanchall package but it's gonna be a bitch to convert the event types here...
-
-
-                    //midiOut.SendEvent(new Melanchall.DryWetMidi.Core.NoteOnEvent((Melanchall.DryWetMidi.Common.SevenBitNumber)filtered.Data1, (Melanchall.DryWetMidi.Common.SevenBitNumber)filtered.Data2));
-                    // Below: Sound to match, then unfiltered sound.  Or leave commented for no sound.
-                    if (!outDevice.IsDisposed) // If they change song prefs while playing, this can fail, so just skip then
-                        try
-                        {
-                            if (ConfigManager.GetIntegerProperty(PropertyItem.Instrument) == 9)
-                            {
-                                // Drums... 
-                                // Ignore any notes that aren't on glockenspiel
-                                if (filtered.MidiChannel == 9) // glocken
-                                {
-                                    // Figure out where it ranks on DrumNoteCounts
-                                    //int drumNote = 0;
-                                    //for(int i = 0; i < DrumNoteCounts.Count(); i++)
-                                    //{ 
-                                    //    if(DrumNoteCounts[i].Key == filtered.Data1)
-                                    //    {
-                                    //        drumNote = i;
-                                    //        break;
-                                    //    }
-                                    //}
-                                    // Assume it's no longer 0 for now...
-                                    // Now just map it to a dictionary of most popular notes on drums
-                                    if (DrumMappings.MidiToRustMap.ContainsKey(filtered.Data1))
-                                    {
-                                        var newNote = new ChannelMessage(filtered.Command, filtered.MidiChannel, DrumMappings.MidiToRustMap[filtered.Data1], filtered.Data2);
-                                        outDevice.Send(newNote);
-                                        return;
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                var note = rustOutDevice.FilterNote(filtered, trackSelectionManager.NoteOffset +
-                                    (trackSelectionManager.MidiChannelOffsets.ContainsKey(e.Message.MidiChannel) ? trackSelectionManager.MidiChannelOffsets[e.Message.MidiChannel] : 0));
-                                if (note != null)
-                                    outDevice.Send(note);
-                            }
-                        }
-                        catch (Exception) { } // Ignore exceptions, again, they might edit things while it's trying to play
-                    //}
-                    //outDevice.Send(filtered);
+                    outDevice.Send(mordhauOutDevice.FilterNote(trackSelectionManager.FilterMidiEvent(e.Message, e.TrackId)));
                 }
                 else
                 {
-                    mordhauOutDevice.SendNote(trackSelectionManager.FilterMidiEvent(e.Message, e.TrackId), trackSelectionManager.NoteOffset +
-                       (trackSelectionManager.MidiChannelOffsets.ContainsKey(e.Message.MidiChannel) ? trackSelectionManager.MidiChannelOffsets[e.Message.MidiChannel] : 0));
+                    mordhauOutDevice.SendNote(trackSelectionManager.FilterMidiEvent(e.Message, e.TrackId));
                 }
             }
             else

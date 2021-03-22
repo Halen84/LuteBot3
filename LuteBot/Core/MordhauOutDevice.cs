@@ -75,13 +75,13 @@ namespace LuteBot.Core
             }
         }
 
-        public ChannelMessage FilterNote(ChannelMessage message, int offset)
+        public ChannelMessage FilterNote(ChannelMessage message)
         {
             if (conversionNeeded && (message.Command == ChannelCommand.NoteOn || message.Command == ChannelCommand.NoteOff))
             {
                 bool outOfRange = false;
                 int newData1 = 0;
-                int oldData1 = message.Data1 + offset;
+                int oldData1 = message.Data1;
                 int velocity = message.Data2;
 
                 if (oldData1 < lowNoteId)
@@ -113,7 +113,7 @@ namespace LuteBot.Core
             }
         }
 
-        public void SendNote(ChannelMessage message, int offset)
+        public void SendNote(ChannelMessage message)
         {
             ChannelMessage filterResult;
             if (message.Command == ChannelCommand.NoteOn && message.Data2 > 0)
@@ -123,7 +123,7 @@ namespace LuteBot.Core
                 {
                     if (!stopWatch.IsRunning)
                     {
-                        filterResult = FilterNote(message, offset);
+                        filterResult = FilterNote(message);
                         if (message.Data2 > 0)
                         {
                             ActionManager.PlayNote(filterResult.Data1 - lowNoteId);
@@ -135,7 +135,7 @@ namespace LuteBot.Core
                     {
                         if (stopWatch.ElapsedMilliseconds >= noteCooldown)
                         {
-                            filterResult = FilterNote(message, offset);
+                            filterResult = FilterNote(message);
                             if (message.Data2 > 0)
                             {
                                 ActionManager.PlayNote(filterResult.Data1 - lowNoteId);
@@ -146,7 +146,7 @@ namespace LuteBot.Core
                 }
                 else
                 {
-                    filterResult = FilterNote(message, offset);
+                    filterResult = FilterNote(message);
                     if (message.Data2 > 0)
                     {
                         ActionManager.PlayNote(filterResult.Data1 - lowNoteId);

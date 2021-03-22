@@ -51,7 +51,7 @@ namespace LuteBot.LiveInput.Midi
                 int index = binds.IndexOf(key);
                 if (index != -1)
                 {
-                    outDevice.SendNote(new ChannelMessage(ChannelCommand.NoteOn, 1, index + outDevice.LowNoteId, 1),_manager.NoteOffset);
+                    outDevice.SendNote(new ChannelMessage(ChannelCommand.NoteOn, 1, index + outDevice.LowNoteId, 1));
                 }
             }
         }
@@ -97,7 +97,7 @@ namespace LuteBot.LiveInput.Midi
             if (!keyboardMode)
             {
                 ChannelEventReceived.Invoke(sender, e);
-                outDevice.SendNote(e.Message, _manager.NoteOffset);
+                outDevice.SendNote(e.Message);
             }
         }
 

@@ -78,7 +78,6 @@
     <Compile Include="Core\Midi\MidiPlayer.cs" />
     <Compile Include="Core\MordhauOutDevice.cs" />
     <Compile Include="Core\Player.cs" />
-    <Compile Include="Core\RustOutDevice.cs" />
     <Compile Include="GuildSong.cs" />
     <Compile Include="IO\KB\Keybinds.cs" />
     <Compile Include="LiveInput\Midi\LiveMidiManager.cs" />
@@ -114,17 +113,17 @@
     <Compile Include="UI\GuildLibraryForm.Designer.cs">
       <DependentUpon>GuildLibraryForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="UI\HelpForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\HelpForm.Designer.cs">
+      <DependentUpon>HelpForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="UI\KeyBindingForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="UI\KeyBindingForm.Designer.cs">
       <DependentUpon>KeyBindingForm.cs</DependentUpon>
-    </Compile>
-    <Compile Include="UI\ScrapMechanicConfigForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="UI\ScrapMechanicConfigForm.Designer.cs">
-      <DependentUpon>ScrapMechanicConfigForm.cs</DependentUpon>
     </Compile>
     <Compile Include="UI\TimeSyncForm.cs">
       <SubType>Form</SubType>
@@ -186,6 +185,9 @@
     <EmbeddedResource Include="UI\GuildLibraryForm.resx">
       <DependentUpon>GuildLibraryForm.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="UI\HelpForm.resx">
+      <DependentUpon>HelpForm.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="UI\KeyBindingForm.resx">
       <DependentUpon>KeyBindingForm.cs</DependentUpon>
     </EmbeddedResource>
@@ -211,9 +213,6 @@
       <DependentUpon>Resources.resx</DependentUpon>
       <DesignTime>True</DesignTime>
     </Compile>
-    <EmbeddedResource Include="UI\ScrapMechanicConfigForm.resx">
-      <DependentUpon>ScrapMechanicConfigForm.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="UI\SettingsForm.resx">
       <DependentUpon>SettingsForm.cs</DependentUpon>
     </EmbeddedResource>
