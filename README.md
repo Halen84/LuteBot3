@@ -1,6 +1,5 @@
 # LuteBot 3
 Originally forked from https://github.com/MontyLeGueux/Lutebot-2
-I had some issues with Git and ended up making a new repo, but this is still mostly his code
 
 ![Track Filtering Example](https://github.com/Dimencia/LuteBot3/blob/master/LutebotExample1.PNG)
 
