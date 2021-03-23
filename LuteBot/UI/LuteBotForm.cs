@@ -931,11 +931,5 @@ namespace LuteBot
             sb.Append("]}],\"version\":3}");
             return sb.ToString();
         }
-
-        private void helpToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            HelpForm helpForm = new HelpForm(this);
-            helpForm.Show();
-        }
     }
 }

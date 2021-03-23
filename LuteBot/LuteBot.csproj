@@ -113,12 +113,6 @@
     <Compile Include="UI\GuildLibraryForm.Designer.cs">
       <DependentUpon>GuildLibraryForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="UI\HelpForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="UI\HelpForm.Designer.cs">
-      <DependentUpon>HelpForm.cs</DependentUpon>
-    </Compile>
     <Compile Include="UI\KeyBindingForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -184,9 +178,6 @@
     <Compile Include="UI\Utils\WindowPositionUtils.cs" />
     <EmbeddedResource Include="UI\GuildLibraryForm.resx">
       <DependentUpon>GuildLibraryForm.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="UI\HelpForm.resx">
-      <DependentUpon>HelpForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="UI\KeyBindingForm.resx">
       <DependentUpon>KeyBindingForm.cs</DependentUpon>

@@ -348,7 +348,13 @@ namespace LuteBot.Core.Midi
             {
                 if (ConfigManager.GetBooleanProperty(PropertyItem.SoundEffects) && !disposed)
                 {
-                    outDevice.Send(mordhauOutDevice.FilterNote(trackSelectionManager.FilterMidiEvent(e.Message, e.TrackId)));
+                    try
+                    {
+                        outDevice.Send(mordhauOutDevice.FilterNote(trackSelectionManager.FilterMidiEvent(e.Message, e.TrackId)));
+                    }
+                    catch (Exception) { }
+                    // You can edit the track while it's playing and the edits will take place live in Mordhau as it's playing. 
+                    // Though you probably shouldn't do this, but it's better than just erroring out.
                 }
                 else
                 {

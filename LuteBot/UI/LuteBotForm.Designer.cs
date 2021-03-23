@@ -197,10 +197,7 @@ namespace LuteBot
             // helpToolStripMenuItem
             // 
             this.helpToolStripMenuItem.Name = "helpToolStripMenuItem";
-            this.helpToolStripMenuItem.Size = new System.Drawing.Size(44, 20);
-            this.helpToolStripMenuItem.Text = "Help";
-            this.helpToolStripMenuItem.Visible = false;
-            this.helpToolStripMenuItem.Click += new System.EventHandler(this.helpToolStripMenuItem_Click);
+            this.helpToolStripMenuItem.Size = new System.Drawing.Size(12, 20);
             // 
             // contextMenuStrip1
             // 
@@ -311,6 +308,7 @@ namespace LuteBot
             this.ReloadButton.Text = "Reload";
             this.toolTip1.SetToolTip(this.ReloadButton, "Reload song after editing it");
             this.ReloadButton.UseVisualStyleBackColor = true;
+            this.ReloadButton.Visible = false;
             // 
             // LuteBotForm
             // 
