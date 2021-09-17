@@ -328,7 +328,7 @@ namespace LuteBot
             if (ConfigManager.GetBooleanProperty(PropertyItem.TrackSelection))
             {
                 var midiPlayer = player as MidiPlayer;
-                trackSelectionForm = new TrackSelectionForm(trackSelectionManager, midiPlayer.mordhauOutDevice, midiPlayer.rustOutDevice);
+                trackSelectionForm = new TrackSelectionForm(trackSelectionManager, midiPlayer.mordhauOutDevice);
                 Point coords = WindowPositionUtils.CheckPosition(ConfigManager.GetCoordsProperty(PropertyItem.TrackSelectionPos));
                 trackSelectionForm.Show();
                 trackSelectionForm.Top = coords.Y;
@@ -565,7 +565,7 @@ namespace LuteBot
             if (trackSelectionForm == null || trackSelectionForm.IsDisposed)
             {
                 var midiPlayer = player as MidiPlayer;
-                trackSelectionForm = new TrackSelectionForm(trackSelectionManager, midiPlayer.mordhauOutDevice, midiPlayer.rustOutDevice);
+                trackSelectionForm = new TrackSelectionForm(trackSelectionManager, midiPlayer.mordhauOutDevice);
                 Point coords = WindowPositionUtils.CheckPosition(ConfigManager.GetCoordsProperty(PropertyItem.TrackSelectionPos));
                 trackSelectionForm.Show();
                 trackSelectionForm.Top = coords.Y;
@@ -670,146 +670,6 @@ namespace LuteBot
             { Totebots.Percussion, "4c6e27a2-4c35-4df3-9794-5e206fef9012" }
         };
 
-        private void exportToScrapMechanicToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            // Should save a .json file with scrap mechanic info to play the song
-            // This is going to be long and hard.
-
-
-            // Pitch on the totebot heads is a value from 0.0 to 1.0, and covers two octaves (0-23)
-            // 1 tick is 25ms
-
-            // Make all the axes and positions match, except the switch, for a tiny version
-
-            // So the way we handle this, if we construct a List<SMNote> of each note in order
-            // We just pass it in to our function that we just wrote and get this whole thing out
-
-            // We need to convert Midi ticks to game ticks, where a game tick is 25ms
-            // Formula: ms = 60000 / (BPM * PPQ)
-            // BPM and PPQ should be in the player somewhere - PPQ = Division, BPM = Tempo
-
-            // Let's popup a settings window...
-
-            ScrapMechanicConfigForm configForm = new ScrapMechanicConfigForm(player);
-            var dialogResult = configForm.ShowDialog(this);
-            if (dialogResult != DialogResult.OK)
-                return;
-
-
-            List<SMNote> onNotes = new List<SMNote>();
-            List<SMNote> notes = new List<SMNote>();
-            toteHeads = new List<ToteHead>();
-            durationTimers = new List<SMTimer>();
-            startTimers = new List<SMTimer>();
-            extensionTimers = new List<SMTimer>();
-
-            // Enforce loading of filtering values
-            player.mordhauOutDevice.UpdateNoteIdBounds();
-            int tempo = player.sequence.FirstTempo;
-
-            if (!string.IsNullOrEmpty(currentTrackName))
-                foreach (var track in player.sequence)
-                {
-                    foreach (var note in track.Iterator())
-                    {
-                        if (note.MidiMessage.MessageType == MessageType.Channel)
-                        {
-                            ChannelMessage cm = note.MidiMessage as ChannelMessage;
-                            double msPerTick = tempo / player.sequence.Division; // tempo may change as we move along, watch for issues with getting this now
-
-                            if (cm.Command == ChannelCommand.NoteOn && cm.Data2 > 0) // Velocity > 0
-                            {
-                                int gameTicksStart = (int)Math.Ceiling(note.AbsoluteTicks * msPerTick / 1000 / 25); // Hopefully we don't have to turn this into seconds also
-
-                                // Temporarily...
-                                //if (gameTicksStart > 800)
-                                //    break;
-
-
-                                var filtered = player.mordhauOutDevice.FilterNote(cm, 0);
-
-                                var newNote = new SMNote()
-                                {
-                                    channel = cm.MidiChannel,
-                                    midiEvent = note,
-                                    startTicks = gameTicksStart,
-                                    noteNum = filtered.Data1 - player.mordhauOutDevice.LowNoteId,
-                                    velocity = filtered.Data2,
-                                    flavor = (TotebotTypes)configForm.TrackTypeDict[filtered.MidiChannel],
-                                    instrument = (Totebots)configForm.TrackCategoryDict[filtered.MidiChannel],
-                                    internalId = onNotes.Count + notes.Count, // I don't think I use this, oh well
-                                    filtered = filtered,
-                                    durationTicks = -1
-                                };
-
-                                // And the duration... we need a NoteOff before we can know
-                                onNotes.Add(newNote);
-                                // But we need to add it now to preserve the order... 
-                                // We'll just sort them afterward
-                            }
-                            else if (cm.Command == ChannelCommand.NoteOff || (cm.Command == ChannelCommand.NoteOn && cm.Data2 == 0))
-                            {
-                                var onNote = onNotes.Where(n => ((ChannelMessage)n.midiEvent.MidiMessage).MidiChannel == cm.MidiChannel && ((ChannelMessage)n.midiEvent.MidiMessage).Data1 == cm.Data1).FirstOrDefault();
-
-                                // Same channel and note... must be us
-                                if (onNote != null)
-                                {
-                                    int gameTicksDuration = (int)Math.Ceiling((note.AbsoluteTicks - onNote.midiEvent.AbsoluteTicks) * msPerTick / 1000 / 25);
-                                    // Everything was a bit too fast, a ceil should help
-                                    onNotes.Remove(onNote);
-                                    if (onNote.filtered.Data2 > 0) // Still not muted
-                                    {
-                                        onNote.durationTicks = gameTicksDuration;
-                                        notes.Add(onNote);
-                                    }
-
-                                }
-                            }
-                        }
-                        else if (note.MidiMessage.MessageType == MessageType.Meta)
-                        {
-                            MetaMessage mm = note.MidiMessage as MetaMessage;
-                            if (mm.MetaType == MetaType.Tempo)
-                            {
-                                // As for getting the actual Tempo out of it... 
-                                var bytes = mm.GetBytes();
-                                // Apparently it's... backwards?  Different endianness or whatever...
-                                byte[] tempoBytes = new byte[4];
-                                tempoBytes[2] = bytes[0];
-                                tempoBytes[1] = bytes[1];
-                                tempoBytes[0] = bytes[2];
-                                tempo = BitConverter.ToInt32(tempoBytes, 0);
-                            }
-                        }
-                    }
-                }
-
-            // Now sort notes list by the startTicks ... hopefully ascending
-            notes.Sort(new Comparison<SMNote>((n, m) => n.startTicks - m.startTicks));
-            // And make the files
-            Guid guid = Guid.NewGuid();
-            string baseDir = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + Path.DirectorySeparatorChar + "SM Blueprints" + Path.DirectorySeparatorChar + Path.GetFileNameWithoutExtension(currentTrackName) + Path.DirectorySeparatorChar + guid + Path.DirectorySeparatorChar;
-            Directory.CreateDirectory(baseDir);
-
-
-            using (StreamWriter writer = new StreamWriter(baseDir + Path.DirectorySeparatorChar + "blueprint.json"))
-            {
-                writer.Write(getSMBlueprint(notes));
-            }
-            using (StreamWriter writer = new StreamWriter(baseDir + "description.json"))
-            {
-                writer.WriteLine("{");
-                writer.WriteLine("\"description\" : \"" + Path.GetFileNameWithoutExtension(currentTrackName) + " MIDI converted using LuteBot3\",");
-                writer.WriteLine("\"localId\" : \"" + guid + "\",");
-                writer.WriteLine("\"name\" : \"" + Path.GetFileNameWithoutExtension(currentTrackName) + "\",");
-                writer.WriteLine("\"type\" : \"Blueprint\",");
-                writer.WriteLine("\"version\" : 0");
-                writer.WriteLine("}");
-            }
-            Process.Start(baseDir);
-            if (!configForm.IsDisposed)
-                configForm.Dispose();
-        }
 
         public class SMNote
         {

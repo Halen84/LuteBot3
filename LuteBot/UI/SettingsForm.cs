@@ -154,17 +154,7 @@ namespace LuteBot
                 NotesPerChordNumeric.Value = ConfigManager.GetIntegerProperty(PropertyItem.NumChords);
             }
 
-            InitInstruments();
             InitOutputDevice();
-        }
-
-        private void InitInstruments()
-        {
-            Instrument.Read();
-            instrumentsBox.DisplayMember = "Name";
-            foreach (Instrument i in Instrument.Prefabs)
-                instrumentsBox.Items.Add(i);
-            instrumentsBox.SelectedIndex = ConfigManager.GetIntegerProperty(PropertyItem.Instrument);
         }
 
         private void InitOutputDevice()
@@ -304,31 +294,6 @@ namespace LuteBot
             player.ResetDevice(); // I hate that we had to pass this just to do this, but whatever
         }
 
-        private void InstrumentsBox_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            // If it's already the instrument we have as our property
-            // Then don't re-set the values
-            int currentInstrument = ConfigManager.GetIntegerProperty(PropertyItem.Instrument);
-            if (currentInstrument != instrumentsBox.SelectedIndex)
-            {
-                ConfigManager.SetProperty(PropertyItem.Instrument, instrumentsBox.SelectedIndex.ToString());
-                Instrument target = (Instrument)instrumentsBox.SelectedItem;
-
-                SoundEffectsCheckBox.Checked = !target.Name.StartsWith("Mordhau", true, System.Globalization.CultureInfo.InvariantCulture);
-                ConfigManager.SetProperty(PropertyItem.SoundEffects, SoundEffectsCheckBox.Checked.ToString());
-
-                LowestNoteNumeric.Value = target.LowestSentNote;
-                ConfigManager.SetProperty(PropertyItem.LowestNoteId, target.LowestSentNote.ToString());
-
-                NoteCountNumeric.Value = target.NoteCount;
-                ConfigManager.SetProperty(PropertyItem.AvaliableNoteCount, target.NoteCount.ToString());
-
-                NoteCooldownNumeric.Value = target.NoteCooldown;
-                ConfigManager.SetProperty(PropertyItem.NoteCooldown, target.NoteCooldown.ToString());
-
-                ConfigManager.SetProperty(PropertyItem.LowestPlayedNote, target.LowestPlayedNote.ToString());
-            }
-        }
 
         private void LinkLabel1_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {

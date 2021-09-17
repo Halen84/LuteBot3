@@ -37,7 +37,7 @@
     <BootstrapperEnabled>true</BootstrapperEnabled>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
+    <PlatformTarget>x64</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -56,19 +56,6 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
-  </PropertyGroup>
-  <PropertyGroup />
-  <PropertyGroup>
-    <ManifestCertificateThumbprint>772556D17DA9F9E4F3B53533762117C393819D9A</ManifestCertificateThumbprint>
-  </PropertyGroup>
-  <PropertyGroup>
-    <ManifestKeyFile>LuteBot_TemporaryKey.pfx</ManifestKeyFile>
-  </PropertyGroup>
-  <PropertyGroup>
-    <GenerateManifests>true</GenerateManifests>
-  </PropertyGroup>
-  <PropertyGroup>
-    <SignManifests>true</SignManifests>
   </PropertyGroup>
   <PropertyGroup />
   <ItemGroup>
@@ -119,7 +106,6 @@
     <Compile Include="Core\Midi\MidiPlayer.cs" />
     <Compile Include="Core\MordhauOutDevice.cs" />
     <Compile Include="Core\Player.cs" />
-    <Compile Include="Core\RustOutDevice.cs" />
     <Compile Include="DiscordAuthForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -185,19 +171,12 @@
     <Compile Include="UI\KeyBindingForm.Designer.cs">
       <DependentUpon>KeyBindingForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="UI\ScrapMechanicConfigForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="UI\ScrapMechanicConfigForm.Designer.cs">
-      <DependentUpon>ScrapMechanicConfigForm.cs</DependentUpon>
-    </Compile>
     <Compile Include="UI\TimeSyncForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="UI\TimeSyncForm.Designer.cs">
       <DependentUpon>TimeSyncForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="UI\Utils\Instrument.cs" />
     <Compile Include="UI\Utils\Song.cs" />
     <Compile Include="UI\Utils\SortableBindingList.cs" />
     <Compile Include="UI\LiveInputForm.cs">
@@ -285,9 +264,6 @@
       <DependentUpon>Resources.resx</DependentUpon>
       <DesignTime>True</DesignTime>
     </Compile>
-    <EmbeddedResource Include="UI\ScrapMechanicConfigForm.resx">
-      <DependentUpon>ScrapMechanicConfigForm.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="UI\SettingsForm.resx">
       <DependentUpon>SettingsForm.cs</DependentUpon>
     </EmbeddedResource>
@@ -301,7 +277,6 @@
       <DependentUpon>TrackSelectionForm.cs</DependentUpon>
     </EmbeddedResource>
     <None Include="app.config" />
-    <None Include="LuteBot_TemporaryKey.pfx" />
     <None Include="packages.config" />
     <None Include="Config\Old\App.config">
       <SubType>Designer</SubType>

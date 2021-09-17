@@ -141,10 +141,6 @@
       "Value": "0"
     },
 	{
-      "Item": "Instrument",
-      "Value": "0"
-    },
-	{
       "Item": "Server",
       "Value": "127.0.0.1"
     }

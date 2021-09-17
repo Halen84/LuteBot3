@@ -25,7 +25,6 @@
         NumChords,
         DebugMode,
         OutputDevice,
-        Instrument,
 
         //keybinds
         Play,

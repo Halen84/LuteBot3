@@ -20,7 +20,6 @@ namespace LuteBot.Core.Midi
         public Sequence sequence;
         private Sequencer sequencer;
         public MordhauOutDevice mordhauOutDevice;
-        public RustOutDevice rustOutDevice;
         public TrackSelectionManager trackSelectionManager;
 
         private bool isPlaying;
@@ -32,7 +31,6 @@ namespace LuteBot.Core.Midi
             trackSelectionManager.Player = this;
             isPlaying = false;
             mordhauOutDevice = new MordhauOutDevice(trackSelectionManager);
-            rustOutDevice = new RustOutDevice();
             this.trackSelectionManager = trackSelectionManager;
             sequence = new Sequence
             {
@@ -364,8 +362,6 @@ namespace LuteBot.Core.Midi
                     base.LoadCompleted(this, e);
                     mordhauOutDevice.HighMidiNoteId = sequence.MaxNoteId;
                     mordhauOutDevice.LowMidiNoteId = sequence.MinNoteId;
-                    rustOutDevice.HighMidiNoteId = sequence.MaxNoteId;
-                    rustOutDevice.LowMidiNoteId = sequence.MinNoteId;
                 }
             }
         }
@@ -425,39 +421,6 @@ namespace LuteBot.Core.Midi
                     if (!outDevice.IsDisposed) // If they change song prefs while playing, this can fail, so just skip then
                         try
                         {
-                            if (ConfigManager.GetIntegerProperty(PropertyItem.Instrument) == 9)
-                            {
-                                // Drums... 
-                                // Ignore any notes that aren't on glockenspiel
-                                if (filtered.MidiChannel == 9) // glocken
-                                {
-                                    // Figure out where it ranks on DrumNoteCounts
-                                    //int drumNote = 0;
-                                    //for(int i = 0; i < DrumNoteCounts.Count(); i++)
-                                    //{ 
-                                    //    if(DrumNoteCounts[i].Key == filtered.Data1)
-                                    //    {
-                                    //        drumNote = i;
-                                    //        break;
-                                    //    }
-                                    //}
-                                    // Assume it's no longer 0 for now...
-                                    // Now just map it to a dictionary of most popular notes on drums
-                                    if (DrumMappings.MidiToRustMap.ContainsKey(filtered.Data1))
-                                    {
-                                        var newNote = new ChannelMessage(filtered.Command, filtered.MidiChannel, DrumMappings.MidiToRustMap[filtered.Data1], filtered.Data2);
-                                        outDevice.Send(newNote);
-                                        return;
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                var note = rustOutDevice.FilterNote(filtered, trackSelectionManager.NoteOffset +
-                                    (trackSelectionManager.MidiChannelOffsets.ContainsKey(e.Message.MidiChannel) ? trackSelectionManager.MidiChannelOffsets[e.Message.MidiChannel] : 0));
-                                if (note != null)
-                                    outDevice.Send(note);
-                            }
                         }
                         catch (Exception) { } // Ignore exceptions, again, they might edit things while it's trying to play
                     //}
