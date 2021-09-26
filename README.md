@@ -1,7 +1,9 @@
+# Notice
+This fork of https://github.com/Dimencia/LuteBot3 is modified to remove everything non-Mordhau related so the program is less cumbersome.
+
 # LuteBot 3
 Originally forked from https://github.com/MontyLeGueux/Lutebot-2
 I had some issues with Git and ended up making a new repo, but this is still mostly his code
-
 
 ## Usage Instructions
 Download the latest Release from https://github.com/Dimencia/LuteBot3/releases
@@ -15,7 +17,6 @@ Further support is provided at the [Bard's Guild Discord](https://discord.gg/4xn
 ![Guild Library Example](https://github.com/Dimencia/LuteBot3/blob/master/LutebotExample2.PNG)
 
 ## New Features v Lutebot-2
-* Rust compatibility
 * Searching/filtering/downloading of any song in the Bards Guild Midi Library - Bard's Guild: https://discord.gg/4xnJVuz
 * Automatic search/download of BitMidi when searching for a song not in the Library
 * Ability to visually align songs or individual channels to match your instrument
@@ -53,12 +54,3 @@ Previously it was stored in an xml file, and when distributing mids, you had to 
 Now, once you find the perfect settings for a mid, you can send that adjusted mid to someone and have them load it directly
 
 All mids with embedded data are still compatible with any other midi players
-
-### Rust
-Using this with Rust requires you to download and install [LoopMidi](https://www.tobias-erichsen.de/software/loopmidi.html) or equivalent midi loopback device.  Simply create a port in LoopMidi with any name, and then in Lutebot, select that port as the Output device.  Then select your instrument and make sure Rust Mode is enabled in Settings
-
-Rust is interesting because there already exists a good solution for playing mids there - LoopMidi and MidiPlayer.  Unfortunately, depending on the octaves, some songs don't translate well, and Rust doesn't do any remapping to make the song fit.  It also tends to send delayed-duplicate notes when the midi has notes on top of eachother.  
-
-So, this now solves those problems, as well as providing the same customization options and Guild Library to Mordhau and Rust users
-
-All instruments are supported and available to select from a dropdown box
