@@ -89,9 +89,9 @@
 			this.label1.AutoSize = true;
 			this.label1.Location = new System.Drawing.Point(9, 21);
 			this.label1.Name = "label1";
-			this.label1.Size = new System.Drawing.Size(229, 13);
+			this.label1.Size = new System.Drawing.Size(498, 17);
 			this.label1.TabIndex = 4;
-			this.label1.Text = "Search the online Bard\'s Guild Library for MIDIs";
+			this.label1.Text = "Search the online Bard\'s Guild Library for MIDIs (Only top 20 results returned)";
 			// 
 			// songGrid
 			// 
