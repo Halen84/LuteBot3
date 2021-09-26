@@ -306,6 +306,7 @@ namespace LuteBot.UI
             {
                 GuildSong selectedSong = (GuildSong)songGrid.SelectedRows[0].DataBoundItem;
                 downloadAndPlaySong(selectedSong);
+                mainForm.Focus();
             }
         }
     }
