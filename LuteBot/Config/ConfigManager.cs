@@ -24,7 +24,7 @@ namespace LuteBot.Config
 
         static ConfigManager()
         {
-            autoSavePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Config");
+            autoSavePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LuteBot", "Config");
             Refresh();
         }
 
@@ -51,10 +51,10 @@ namespace LuteBot.Config
 
         public static string GetProperty(PropertyItem item)
         {
-            var result = configuration.Get(item);
-            if (result == null)
-                result = defaultConfig.Get(item);
-            return result;
+                var result = configuration.Get(item);
+                if (result == null)
+                    result = defaultConfig.Get(item);
+                return result;
         }
 
         public static void SetProperty(PropertyItem item, string value)
@@ -159,12 +159,12 @@ namespace LuteBot.Config
 
         private static string BuildPath(Config config)
         {
-            return Path.Combine(autoSavePath, "Configuration");
+            return Path.Combine(autoSavePath,"Configuration");
         }
 
         public static string GetVersion()
         {
-            return "3.2.0";
+            return "3.3.4";
         }
     }
 }

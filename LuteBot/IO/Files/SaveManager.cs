@@ -2,6 +2,8 @@
 using LuteBot.Playlist;
 using LuteBot.Soundboard;
 using LuteBot.TrackSelection;
+using LuteBot.UI.Utils;
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -16,7 +18,7 @@ namespace LuteBot.IO.Files
 {
     public class SaveManager
     {
-        private static string autoSavePath = "Profiles";
+        private static string autoSavePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"LuteBot","Profiles");
 
         private static int fileSize = 5000;
         private static List<byte> fileHeader;
@@ -192,15 +194,23 @@ namespace LuteBot.IO.Files
             return LoadNoDialog<SoundBoard>(path);
         }
 
-        public static void SaveTrackSelectionData(TrackSelectionData data, string fileName)
+        public static void SaveTrackSelectionData(Dictionary<int, TrackSelectionData> data, string fileName, string targetPath = null)
         {
-            SaveNoDialog(data, fileName);
+            SaveNoDialog(data, fileName, targetPath);
         }
 
-        public static TrackSelectionData LoadTrackSelectionData(string fileName)
+        public static Dictionary<int, TrackSelectionData> LoadTrackSelectionData(string fileName)
         {
             //return LoadNoDialog<TrackSelectionData>(autoSavePath + "/" + fileName);
-            return LoadNoDialog<TrackSelectionData>(fileName);
+            // Backwards compatible in case TSD isn't there.  
+
+            var result = LoadNoDialog<Dictionary<int, TrackSelectionData>>(fileName);
+            if (result == null)
+            {
+                var singularData = LoadNoDialog<TrackSelectionData>(fileName);
+                result = new Dictionary<int, TrackSelectionData>() { { 0, singularData } };
+            }
+            return result;
         }
 
         public static string SetMordhauConfigLocation()
@@ -211,12 +221,13 @@ namespace LuteBot.IO.Files
                 OpenFileDialog openFileDialog = new OpenFileDialog();
                 openFileDialog.DefaultExt = "ini";
                 openFileDialog.Filter = "INI files|*.ini";
+                openFileDialog.InitialDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mordhau", "Saved", "Config", "WindowsClient");
                 if (openFileDialog.ShowDialog() == DialogResult.OK)
                 {
                     fileName = openFileDialog.FileName;
-                    if (!fileName.Contains("DefaultInput.ini"))
+                    if (!fileName.Contains("Input.ini"))
                     {
-                        MessageBox.Show("Please select the file \"DefaultInput.ini\"", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show("Please select the file \"Input.ini\"", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         fileName = null;
                     }
                 }
@@ -241,17 +252,28 @@ namespace LuteBot.IO.Files
             byte[] streamResult;
             string content;
 
+            if (string.IsNullOrWhiteSpace(fileName) || !File.Exists(fileName))
+                fileName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mordhau", "Saved", "Config", "WindowsClient", "Input.ini");
+            if (!File.Exists(fileName))
+                return null;
+            // If the file exists, save it into config... this doesn't really go here... oh well.
+            Config.ConfigManager.SetProperty(Config.PropertyItem.MordhauInputIniLocation, fileName);
+            // It's really not necessary, either.  Blank defaults to the usual one, that's good.  
+            // Yeah, it's necessary because otherwise I'd have to hunt down everywhere that calls it.  Which isn't that many places but still
+
             try
             {
-                using (var stream = File.Open(fileName, FileMode.Open))
-                {
-                    streamResult = new byte[stream.Length];
-                    stream.Read(streamResult, 0, (int)stream.Length);
-                    content = Encoding.UTF8.GetString(streamResult);
-                }
+                //using (var stream = File.Open(fileName, FileMode.Open))
+                //{
+                //    streamResult = new byte[stream.Length];
+                //    stream.Read(streamResult, 0, (int)stream.Length);
+                //    content = Encoding.UTF8.GetString(streamResult);
+                //}
+                content = File.ReadAllText(fileName);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Console.WriteLine(ex);
                 content = null;
             }
             return content;
@@ -276,7 +298,7 @@ namespace LuteBot.IO.Files
             {
                 var serializer = new DataContractSerializer(typeof(T));
                 // Also dirty
-                if (typeof(T) == typeof(TrackSelectionData))
+                if (typeof(T) == typeof(TrackSelectionData) || typeof(T) == typeof(Dictionary<int, TrackSelectionData>))
                 {
                     // We do things totally different here.
                     // We load from the mid file
@@ -288,7 +310,7 @@ namespace LuteBot.IO.Files
                         using (StreamReader reader = new StreamReader(path))
                         {
                             string line = reader.ReadLine();
-                            while (line != null && !line.StartsWith("<TrackSelectionData"))
+                            while (line != null && !line.StartsWith("<ArrayOfKeyValueOfintTrackSelectionDatatebA3aWD") && !line.StartsWith("<TrackSelectionData"))
                                 line = reader.ReadLine();
                             line += "\n" + reader.ReadToEnd(); // This is our entire xml data now...
                             // Now, because of the way I read this, I can't rewind the stream
@@ -300,11 +322,12 @@ namespace LuteBot.IO.Files
                             }
                         }
                     }
-                    catch (Exception e) { 
-                        path = "Profiles" + Path.DirectorySeparatorChar + Path.GetFileNameWithoutExtension(path); 
+                    catch (Exception e)
+                    {
+                        path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"LuteBot","Profiles",Path.GetFileNameWithoutExtension(path));
                     }
                 }
-                
+
                 Directory.CreateDirectory(autoSavePath);
                 path = Path.Combine(autoSavePath, Path.GetFileNameWithoutExtension(path) + ".xml");
                 if (File.Exists(path))
@@ -333,13 +356,15 @@ namespace LuteBot.IO.Files
             return result;
         }
 
-        private static void SaveNoDialog<T>(T target, string path)
+        private static void SaveNoDialog<T>(T target, string path, string targetPath = null)
         {
+            if (targetPath == null)
+                targetPath = path;
             if (path != null)
             {
                 var serializer = new DataContractSerializer(typeof(T));
                 // Still dirty
-                if (typeof(T) == typeof(TrackSelectionData))
+                if (typeof(T) == typeof(Dictionary<int, TrackSelectionData>))
                 {
                     try
                     {
@@ -354,14 +379,14 @@ namespace LuteBot.IO.Files
                             // First read in the existing data
                             byte[] midiData;
                             long fsLength;
-                            using (FileStream fs = File.OpenRead(path)) 
+                            using (FileStream fs = File.OpenRead(path))
                             {
                                 fsLength = fs.Length;
                                 midiData = new byte[fs.Length];
                                 for (int i = 0; i < fs.Length; i++)
                                     midiData[i] = (byte)fs.ReadByte(); // No int overflow issues here vs .Read()
                             }
-                            
+
 
                             // midiData currently includes both the xml and midi right now
                             // I need to somehow find out where in the byte array the xml stuff starts
@@ -371,6 +396,7 @@ namespace LuteBot.IO.Files
 
                             int xmlCutoff = -1;
                             byte[] xmlMarker = Encoding.ASCII.GetBytes("\n<TrackSelectionData");
+                            byte[] dictXmlMarker = Encoding.ASCII.GetBytes("\n<ArrayOfKeyValueOfintTrackSelectionDatatebA3aWD");
 
                             // We throw exceptions on these cuz we catch them below and do default saving instead if necessary
                             if (fsLength + xmlMarker.Length > int.MaxValue) // Handle rare case
@@ -387,10 +413,28 @@ namespace LuteBot.IO.Files
                             // I think we have to do this manually, annoyingly, there's no easy way to find the indexOf a byte array like this
                             for (int i = 0; (i + xmlMarker.Length) < midiData.Length; i++)
                             {
+                                if ((i + dictXmlMarker.Length) < midiData.Length)
+                                {
+                                    var compare2 = midiData.Skip(i).Take(dictXmlMarker.Length).ToArray();
+                                    bool success2 = true;
+                                    for (int j = 0; j < dictXmlMarker.Length; j++)
+                                    {
+                                        if (compare2[j] != dictXmlMarker[j])
+                                        {
+                                            success2 = false;
+                                            break;
+                                        }
+                                    }
+                                    if (success2)
+                                    {
+                                        xmlCutoff = i;
+                                        break;
+                                    }
+                                }
                                 var compare = midiData.Skip(i).Take(xmlMarker.Length).ToArray();
                                 // Again it doesn't seem that == works here and we have to do it by hand...
                                 bool success = true;
-                                for(int j = 0; j < xmlMarker.Length; j++)
+                                for (int j = 0; j < xmlMarker.Length; j++)
                                 {
                                     if (compare[j] != xmlMarker[j])
                                     {
@@ -404,13 +448,13 @@ namespace LuteBot.IO.Files
                                     break;
                                 }
                             }
-                            
+
                             // As a safety check - it should never be -1 or 0 or really anything low but whatever
-                            if(xmlCutoff > 0)
+                            if (xmlCutoff > 0)
                                 midiData = midiData.Take(xmlCutoff).ToArray();
 
                             // Now we have all the data we need
-                            using (FileStream fs = File.Create(path))
+                            using (FileStream fs = File.Create(targetPath))
                             {
                                 fs.Write(midiData, 0, midiData.Length); // Midi data
                                 byte[] xmlData = new byte[stream.Length];
@@ -422,9 +466,10 @@ namespace LuteBot.IO.Files
                         }
                         return;
                     }
-                    catch (Exception e) {
+                    catch (Exception e)
+                    {
                         MessageBox.Show("Failed to write to midi file - writing to XML file instead");
-                        var folderpath = "Profiles";
+                        var folderpath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"LuteBot","Profiles");
                         Directory.CreateDirectory(folderpath);
                         path = folderpath + Path.DirectorySeparatorChar + Path.GetFileNameWithoutExtension(path) + ".xml";
                         using (var stream = File.Create(path))
@@ -433,7 +478,7 @@ namespace LuteBot.IO.Files
                         }
                     } // If it fails, fallback and write to the old path, and write just the stream
                 }
-                
+
             }
         }
 

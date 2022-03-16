@@ -1,7 +1,9 @@
 ﻿using Lutebot.UI;
+
 using LuteBot.Config;
 using LuteBot.Core;
 using LuteBot.Core.Midi;
+using LuteBot.IO.Files;
 using LuteBot.IO.KB;
 using LuteBot.LiveInput.Midi;
 using LuteBot.OnlineSync;
@@ -11,7 +13,11 @@ using LuteBot.TrackSelection;
 using LuteBot.UI;
 using LuteBot.UI.Utils;
 using LuteBot.Utils;
+
+using Microsoft.Win32;
+
 using Sanford.Multimedia.Midi;
+
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -20,8 +26,10 @@ using System.Drawing;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -34,7 +42,8 @@ namespace LuteBot
         private static LowLevelKeyboardProc _proc = HookCallback;
         private static IntPtr _hookID = IntPtr.Zero;
 
-        public static readonly string libraryPath = $@"{Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)}\LuteBot\GuildLibrary\";
+        public static readonly string lutebotPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LuteBot");
+        public static readonly string libraryPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LuteBot", "GuildLibrary");
 
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
@@ -51,7 +60,7 @@ namespace LuteBot
 
         static HotkeyManager hotkeyManager;
 
-        TrackSelectionForm trackSelectionForm;
+        TrackSelectionForm trackSelectionForm = null;
         OnlineSyncForm onlineSyncForm;
         SoundBoardForm soundBoardForm;
         public PlayListForm playListForm;
@@ -60,6 +69,7 @@ namespace LuteBot
         PartitionsForm partitionsForm = null;
 
         MidiPlayer player;
+        public static LuteBotForm luteBotForm;
 
 
         string playButtonStartString = "Play";
@@ -75,11 +85,27 @@ namespace LuteBot
         public static TrackSelectionManager trackSelectionManager;
         static OnlineSyncManager onlineManager;
         static LiveMidiManager liveMidiManager;
+        static KeyBindingForm keyBindingForm = null;
 
-        bool closing = false;
+        private static string lutemodPakName = "FLuteMod_1.3.pak"; // TODO: Get this dynamically or something.  Really, get the file itself from github, but this will do for now
+        private static string loaderPakName = "AutoLoaderWindowsClient.pak";
+        private static string partitionIndexName = "PartitionIndex[0].sav";
+        private static string loaderString1 = @"[/AutoLoader/BP_AutoLoaderActor.BP_AutoLoaderActor_C]
+ClientMods=/Game/Mordhau/Maps/LuteMod/Client/BP_LuteModClientLoader.BP_LuteModClientLoader_C
+ModListWidgetStayTime=5.0";
+        private static string loaderString2 = @"[Mods]
+ModStartupMap=/AutoLoader/ClientModNew_MainMenu.ClientModNew_MainMenu";
+        private static string removeFromEngine = @"[/Script/EngineSettings.GameMapsSettings]
+GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_MainMenu";
+        private static string removeFromPaks = "zz_clientmodloadingmap_425.pak";
+
+        private static string MordhauPakPath = GetPakPath();
+
+        public static LuteBotVersion LatestVersion = null;
 
         public LuteBotForm()
         {
+            luteBotForm = this;
             InitializeComponent();
 
             onlineManager = new OnlineSyncManager();
@@ -107,13 +133,37 @@ namespace LuteBot
             NextButton.Enabled = false;
             MusicProgressBar.Enabled = false;
 
+            this.Shown += LuteBotForm_Shown;
+
 
             _hookID = SetHook(_proc);
+
+            SetConsoleKey(); // Sets up an appropriate path for the mordhau ini, and sets the key if necessary.  Only alerts if it changes something
+
             OpenDialogs();
             this.StartPosition = FormStartPosition.Manual;
             Point coords = WindowPositionUtils.CheckPosition(ConfigManager.GetCoordsProperty(PropertyItem.MainWindowPos));
             Top = coords.Y;
-            Left = coords.X;
+            Left = coords.X; // If we have a proper saved pos, use it unaltered.  If not, we should adjust from screen center, which is what would be returned
+            if (coords != ConfigManager.GetCoordsProperty(PropertyItem.MainWindowPos))
+            {
+                Top = coords.Y - Height;
+                Left = coords.X - Width / 2;
+                // If they weren't equal, it's at default pos, so the others should also be set to good default positions
+                if (trackSelectionForm != null)
+                {
+                    // We should always CheckPosition, just in case something goes weird, so nothing every initializes out of bounds
+                    var tsPos = WindowPositionUtils.CheckPosition(new Point(Left + Width, Top));
+                    WindowPositionUtils.UpdateBounds(PropertyItem.TrackSelectionPos, tsPos);
+                    trackSelectionForm.Location = tsPos;
+                }
+                if (partitionsForm != null)
+                {
+                    var pfPos = WindowPositionUtils.CheckPosition(new Point(Left - partitionsForm.Width, Top));
+                    WindowPositionUtils.UpdateBounds(PropertyItem.PartitionListPos, pfPos);
+                    partitionsForm.Location = pfPos;
+                }
+            }
 
             // We may package this with a guild library for now.  Check for it and extract it, if so
             var files = Directory.GetFiles(Environment.CurrentDirectory, "BGML*.zip", SearchOption.TopDirectoryOnly);
@@ -124,7 +174,7 @@ namespace LuteBot
                     // extract to libraryPath + "\songs\"
                     try
                     {
-                        ZipFile.ExtractToDirectory(files[0], libraryPath + @"\songs\");
+                        ZipFile.ExtractToDirectory(files[0], Path.Combine(libraryPath, "songs"));
                         //File.Delete(files[0]);
                     }
                     catch (Exception e) { } // Gross I know, but no reason to do anything
@@ -142,6 +192,516 @@ namespace LuteBot
                 ConfigManager.SetProperty(PropertyItem.NumChords, "3");
                 ConfigManager.SaveConfig();
             }
+
+            // Check for FirstRun, and offer the wiki link and auto-setup
+            //if (ConfigManager.GetBooleanProperty(PropertyItem.FirstRun))
+            //{
+            //    ConfigManager.SetProperty(PropertyItem.FirstRun, "False");
+            //    // TODO: A help window with... just the wiki link?
+            //    // I guess also link to the Guild's discord and put some credits there, and link to various specific wiki topics
+            //    helpToolStripMenuItem_Click(null, null);
+            //}
+            // I think I'm going to skip this; if it's a first run, they already get two popups that it set the console key, and then lutemod install
+            // The lutemod install gives them links, so, they don't need this, but the var is there if I want it later.
+
+
+            // Again, also removing the following; it's pointless, 3.3.0 was the first version that uses that config path, so it will never need to modify anything for versions below
+
+            // If it's not set, it's below 3.3; the rest is also there just for posterity so I can use it in the future
+            //if (!string.IsNullOrWhiteSpace(ConfigManager.GetProperty(PropertyItem.LastVersion)))
+            //{
+            //
+            //    // Parse the version into something we can compare
+            //    var firstGoodVersions = "3.3".Split('.');
+            //    var lastversions = ConfigManager.GetProperty(PropertyItem.LastVersion).Split('.');
+            //
+            //
+            //    for (int i = 0; i < firstGoodVersions.Length; i++)
+            //    {
+            //        // If we've run out of numbers to compare on either side and none have been less yet, or if any of the numbers are less, the version is below our target
+            //
+            //        // I think.  Target: 3.3 vs 3.31, we ran out of numbers but we're above.  So it depends in which direction
+            //        // If we run out of numbers in the target, it is not less
+            //        // Target: 3.31 vs 3.3, we run out of numbers in the lastversions, so it is less.  Good.  
+            //
+            //        if (i >= lastversions.Length || int.Parse(lastversions[i]) < int.Parse(firstGoodVersions[i]))
+            //        {
+            //            // The last version ran is below the target, and changes should be applied
+            //            Instrument.WriteDefaults();
+            //            // The new config data will pull from defaultConfig and should all be OK
+            //
+            //            // We might should messagebox to let them know, but that'd be like a third messagebox for new installs, and that's just annoying at that point
+            //        }
+            //    }
+            //}
+            //else
+            //{
+            //    Instrument.WriteDefaults();
+            //}
+            ConfigManager.SetProperty(PropertyItem.LastVersion, ConfigManager.GetVersion());
+
+            this.Text = "LuteBot v" + ConfigManager.GetVersion();
+        }
+
+        private async void LuteBotForm_Shown(object sender, EventArgs e)
+        {
+            await CheckUpdates(false);
+        }
+
+        public async Task CheckUpdates(bool ignoreSettings = false)
+        {
+            if (ConfigManager.GetBooleanProperty(PropertyItem.CheckForUpdates))
+            {
+                // Try to update the version.  This is an async void by necessity, so errors will be dropped if we don't log them - but they get logged in there
+                LatestVersion = await UpdateManager.GetLatestVersion();
+                try
+                {
+                    if (LatestVersion != null && LatestVersion.VersionArray != null)
+                    {
+                        var currentVersion = UpdateManager.ConvertVersion(ConfigManager.GetVersion());
+                        PropertyItem updateType = PropertyItem.None;
+                        // Let's dynamically handle any lengths.  'Major' updates, for our purposes, are 0 or 1 (0 will almost never change)
+                        for (int i = 0; i < Math.Max(LatestVersion.VersionArray.Length, currentVersion.Length); i++)
+                        {
+                            if (i < currentVersion.Length)
+                            {
+                                if (i < LatestVersion.VersionArray.Length)
+                                {
+                                    if (LatestVersion.VersionArray[i] > currentVersion[i])
+                                    {
+                                        if (i < 2)
+                                            updateType = PropertyItem.MajorUpdates;
+                                        else
+                                            updateType = PropertyItem.MinorUpdates;
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    break; // Out of numbers in latest, theirs is ... newer...
+                                }
+                            }
+                            else // We're out of numbers in currentVersion, LatestVersion is minorly newer
+                            {
+                                updateType = PropertyItem.MinorUpdates;
+                                break;
+                            }
+                        }
+                        // Now do what we want to do with this info
+                        if (updateType == PropertyItem.MinorUpdates)
+                        {
+                            this.Text += $"    (Update Available: v{LatestVersion.Version})";
+                            if (ignoreSettings || ConfigManager.GetBooleanProperty(PropertyItem.MinorUpdates))
+                            {
+                                var installForm = new UI.PopupForm("Update LuteBot?", $"A new minor LuteBot version is available: v" + LatestVersion.Version,
+                                    $"{LatestVersion.Title}\n\n{LatestVersion.Description}\n\n\n   Would you like to install it?",
+                                    new Dictionary<string, string>() { { "Direct Download", LatestVersion.DownloadLink }, { "LuteBot Releases", "https://github.com/Dimencia/LuteBot3/releases" }, { "The Bard's Guild Discord", "https://discord.gg/4xnJVuz" } }
+                                    , MessageBoxButtons.YesNoCancel, "Don't ask again for minor updates");
+                                installForm.ShowDialog(this);
+                                if (installForm.DialogResult == DialogResult.Yes)
+                                {
+                                    string assemblyLocation = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
+                                    string updaterPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LuteBot", "Updater");
+                                    if (Directory.Exists(updaterPath))
+                                        Directory.Delete(updaterPath, true);
+                                    Directory.CreateDirectory(updaterPath);
+                                    File.Copy(Path.Combine(assemblyLocation, "LuteBotUpdater.exe"), Path.Combine(updaterPath, "LuteBotUpdater.exe"));
+                                    //File.Copy(Path.Combine(assemblyLocation, "LuteBotUpdater.dll"), Path.Combine(updaterPath, "LuteBotUpdater.dll"));
+                                    // Start a separate process to run the updater
+                                    Process.Start(Path.Combine(updaterPath, "LuteBotUpdater.exe"), $"{assemblyLocation} {LatestVersion.DownloadLink}");
+                                    // And close
+                                    Close();
+                                }
+                                else if (installForm.DialogResult == DialogResult.Cancel)
+                                {
+                                    ConfigManager.SetProperty(PropertyItem.MinorUpdates, "False");
+                                }
+                            }
+                        }
+                        else if (updateType == PropertyItem.MajorUpdates)
+                        {
+                            this.Text += $"    (Major Update Available: v{LatestVersion.Version})";
+                            if (ignoreSettings || ConfigManager.GetBooleanProperty(PropertyItem.MajorUpdates))
+                            {
+                                var installForm = new UI.PopupForm("Update LuteBot?", $"A new major LuteBot version is available: v" + LatestVersion.Version,
+                                    $"{LatestVersion.Title}\n\n{LatestVersion.Description}\n\n\n    Would you like to install it?", new Dictionary<string, string>() { { "Direct Download", LatestVersion.DownloadLink }, { "LuteBot Releases", "https://github.com/Dimencia/LuteBot3/releases" }, { "The Bard's Guild Discord", "https://discord.gg/4xnJVuz" } }
+                                    , MessageBoxButtons.YesNoCancel, "Don't ask again for major updates");
+                                installForm.ShowDialog(this);
+                                if (installForm.DialogResult == DialogResult.Yes)
+                                {
+                                    string assemblyLocation = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
+                                    string updaterPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LuteBot", "Updater");
+                                    if (Directory.Exists(updaterPath))
+                                        Directory.Delete(updaterPath, true);
+                                    Directory.CreateDirectory(updaterPath);
+                                    File.Copy(Path.Combine(assemblyLocation, "LuteBotUpdater.exe"), Path.Combine(updaterPath, "LuteBotUpdater.exe"));
+                                    //File.Copy(Path.Combine(assemblyLocation, "LuteBotUpdater.dll"), Path.Combine(updaterPath, "LuteBotUpdater.dll"));
+                                    // Start a separate process to run the updater
+                                    Process.Start(Path.Combine(updaterPath, "LuteBotUpdater.exe"), $"{assemblyLocation} {LatestVersion.DownloadLink}");
+                                    // And close
+                                    Close();
+                                }
+                                else if (installForm.DialogResult == DialogResult.Cancel)
+                                {
+                                    ConfigManager.SetProperty(PropertyItem.MajorUpdates, "False");
+                                }
+                            }
+                        }
+                        else if (ignoreSettings && updateType == PropertyItem.None)
+                        {
+                            //this.Text += $"    (Up To Date)"; // Nah.  Kinda dumb.  
+                            // Show them a popup, though, if they explicitly ran it, telling them they're good
+                            // Just a normal one is fine
+                            MessageBox.Show("Your LuteBot is already the most recent version", "LuteBot Up To Date");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    new UI.PopupForm("Version Check/Update Failed", $"Could not determine the latest LuteBot version",
+                        $"Please report this bug in our Discord\nThis is likely not a network issue, and something I did wrong in the code\n\nYou may want to manually check for an updated version at the following link\n\n{ex.Message}\n{ex.StackTrace}", new Dictionary<string, string>() { { "LuteBot Releases", "https://github.com/Dimencia/LuteBot3/releases" }, { "The Bard's Guild Discord", "https://discord.gg/4xnJVuz" } })
+                        .ShowDialog();
+                }
+            }
+        }
+
+        public static bool IsLuteModInstalled()
+        {
+            // Just check for the lutemod pak in CustomPaks, if they messed it up beyond that they can click the install button themselves, this is just to prompt them to install if necessary
+            var pakPath = Path.Combine(MordhauPakPath, lutemodPakName);
+            if (File.Exists(pakPath))
+            {
+                // Actually.  If they have it, we should check engine.ini for the bad line, and if it's there, recommend install
+                string engineIniPath = Path.Combine(Path.GetDirectoryName(ConfigManager.GetProperty(PropertyItem.MordhauInputIniLocation)), "Engine.ini");
+
+                try
+                {
+                    var content = File.ReadAllText(engineIniPath);
+                    return !content.Contains(removeFromEngine);
+                }
+                catch (Exception e)
+                {
+                    new PopupForm("Mordhau Detection Failed", $"Could not access Engine.ini at {engineIniPath}", $"LuteBot will be unable to fix the LuteMod startup crash from old versions\nThis also indicates something is generally wrong.  You may want to run LuteBot as Administrator\n\n{e.Message}\n{e.StackTrace}", new Dictionary<string, string>() { { "LuteMod Install", "https://mordhau-bards-guild.fandom.com/wiki/LuteMod#Install" }, { "The Bard's Guild Discord", "https://discord.gg/4xnJVuz" } })
+                    .ShowDialog();
+                    return false;
+                }
+            }
+            else
+                return false;
+        }
+
+        public static void InstallLuteMod()
+        {
+            // This may require admin access.  TODO: Detect if we need it and prompt them for it
+            var pakPath = MordhauPakPath;
+            if (string.IsNullOrWhiteSpace(pakPath))
+            { // Shouldn't really happen.  More likely is they have mordhau installed in more than one place and I pick the wrong one.  Might need to let them choose the location
+
+                new PopupForm("Install Failed", $"Could not find Steam path", "LuteMod auto install not available\nPlease install LuteMod manually using the following instructions:", new Dictionary<string, string>() { { "Manual Install", "https://mordhau-bards-guild.fandom.com/wiki/LuteMod#Install" }, { "The Bard's Guild Discord", "https://discord.gg/4xnJVuz" } })
+                    .ShowDialog();
+                return;
+            }
+
+            try
+            {
+
+                Directory.CreateDirectory(pakPath);
+
+                string lutemodPakTarget = Path.Combine(pakPath, lutemodPakName);
+                if (!File.Exists(lutemodPakTarget))
+                    File.Copy(Path.Combine(Application.StartupPath, "LuteMod", lutemodPakName), lutemodPakTarget);
+
+
+                string loaderPakTarget = Path.Combine(pakPath, loaderPakName);
+                if (!File.Exists(loaderPakTarget))
+                    File.Copy(Path.Combine(Application.StartupPath, "LuteMod", loaderPakName), loaderPakTarget);
+            }
+            catch (Exception e)
+            {
+                new PopupForm("Install Failed", $"Could not copy LuteMod files to {pakPath}", $"LuteBot may need to run as Administrator\n\n{e.Message}\n{e.StackTrace}", new Dictionary<string, string>() { { "Manual Install", "https://mordhau-bards-guild.fandom.com/wiki/LuteMod#Install" }, { "The Bard's Guild Discord", "https://discord.gg/4xnJVuz" } })
+                    .ShowDialog();
+                return;
+            }
+
+            try
+            {
+                // Remove the old autoloader pak if it exists, to avoid potential problems like double-loading
+                string removePakTarget = Path.Combine(pakPath, ".." + Path.DirectorySeparatorChar, "Paks", removeFromPaks);
+                if (File.Exists(removePakTarget))
+                    File.Delete(removePakTarget);
+
+                removePakTarget = Path.Combine(pakPath, removeFromPaks);
+                if (File.Exists(removePakTarget))
+                    File.Delete(removePakTarget);
+
+                // Find all instances of old lutemod paks and remove them
+                var files = Directory.GetFiles(pakPath);
+                foreach (var f in files)
+                {
+                    var name = Path.GetFileName(f);
+                    if (Regex.IsMatch(name.ToLower(), "^f?-?lutemod") && name != lutemodPakName)
+                    {
+                        File.Delete(f);
+                    }
+                }
+                files = Directory.GetFiles(Path.Combine(pakPath, ".." + Path.DirectorySeparatorChar, "Paks"));
+                foreach (var f in files)
+                {
+                    var name = Path.GetFileName(f);
+                    if (Regex.IsMatch(name.ToLower(), "^f?-?lutemod") && name != lutemodPakName)
+                    {
+                        File.Delete(f);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                new PopupForm("Could not remove old versions", $"Could not remove old versions of Paks at {pakPath}", $"Install will continue, but you may have conflicts if these files are not removed\n\nLuteBot may need to run as Administrator, or Mordhau may need to be closed\n\n{e.Message}\n{e.StackTrace}", new Dictionary<string, string>() { { "Manual Install", "https://mordhau-bards-guild.fandom.com/wiki/LuteMod#Install" }, { "The Bard's Guild Discord", "https://discord.gg/4xnJVuz" } })
+                    .ShowDialog();
+            }
+
+
+            string gameIniPath = Path.Combine(Path.GetDirectoryName(ConfigManager.GetProperty(PropertyItem.MordhauInputIniLocation)), "Game.ini");
+
+            try
+            {
+                var content = File.ReadAllText(gameIniPath);
+
+
+                if (!content.Contains(loaderString1))
+                    content = content + "\n" + loaderString1;
+                if (!content.Contains(loaderString2))
+                    content = content + "\n" + loaderString2;
+
+                File.WriteAllText(gameIniPath, content);
+            }
+            catch (Exception e)
+            {
+                new PopupForm("Install Failed", $"Could not access Game.ini at {gameIniPath}", $"LuteBot may need to run as Administrator\nYou can set a custom path in the Key Bindings menu\n\n{e.Message}\n{e.StackTrace}", new Dictionary<string, string>() { { "Manual Install", "https://mordhau-bards-guild.fandom.com/wiki/LuteMod#Install" }, { "The Bard's Guild Discord", "https://discord.gg/4xnJVuz" } })
+                    .ShowDialog();
+                return;
+            }
+
+            // removeFromEngine
+            string engineIniPath = Path.Combine(Path.GetDirectoryName(ConfigManager.GetProperty(PropertyItem.MordhauInputIniLocation)), "Engine.ini");
+
+            try
+            {
+                var content = File.ReadAllText(engineIniPath);
+
+
+                if (content.Contains(removeFromEngine)) // Prevent rewriting the file if we don't change anything
+                {
+                    content = content.Replace(removeFromEngine, "");
+                    File.WriteAllText(engineIniPath, content);
+                }
+            }
+            catch (Exception e)
+            {
+                new PopupForm("Crash Fix Failed", $"Could not access Engine.ini at {engineIniPath}", $"This is not fatal, and install will continue, but if you are experiencing startup crashes from an old version, they will not be fixed\n\nLuteBot may need to run as Administrator\nYou can set a custom path in the Key Bindings menu\n\n{e.Message}\n{e.StackTrace}", new Dictionary<string, string>() { { "Manual Install", "https://mordhau-bards-guild.fandom.com/wiki/LuteMod#Install" }, { "The Bard's Guild Discord", "https://discord.gg/4xnJVuz" } })
+                    .ShowDialog();
+            }
+
+            string partitionIndexTarget = Path.Combine(SaveManager.SaveFilePath, partitionIndexName);
+            try
+            {
+                Directory.CreateDirectory(SaveManager.SaveFilePath); // Some people don't have one yet apparently
+                                                                     // TODO: Testing on this.  Supposedly each user needs to generate their own empty PartitionIndex, but that may have just been some other bug that was fixed since?
+                if (!File.Exists(partitionIndexTarget))
+                    File.Copy(Path.Combine(Application.StartupPath, "LuteMod", partitionIndexName), partitionIndexTarget);
+            }
+            catch (Exception e)
+            {
+                new PopupForm("Could not create PartitionIndex", $"Could not copy to {partitionIndexTarget}", $"This is not fatal, and install will continue\n\nYou must initialize LuteMod yourself by pressing Kick with a Lute until the menu appears\n\n\n{e.Message}\n{e.StackTrace}", new Dictionary<string, string>() { { "Manual Install", "https://mordhau-bards-guild.fandom.com/wiki/LuteMod#Install" }, { "The Bard's Guild Discord", "https://discord.gg/4xnJVuz" } })
+                    .ShowDialog();
+            }
+
+            new PopupForm("Install Complete", "LuteMod Successfully Installed", "Use LuteBot to create Partitions out of your songs for LuteMod\n\nUse Kick in-game with a lute to open the LuteMod menu\n\nIf Mordhau is open, restart it",
+                new Dictionary<string, string>() {
+                    { "Adding Songs", "https://mordhau-bards-guild.fandom.com/wiki/LuteMod#Adding_Songs" } ,
+                    { "Playing Songs", "https://mordhau-bards-guild.fandom.com/wiki/LuteMod#Playing_Songs" },
+                    { "Flute and Duets", "https://mordhau-bards-guild.fandom.com/wiki/LuteMod#Flute_and_Duets" },
+                    { "The Bard's Guild Discord", "https://discord.gg/4xnJVuz" },
+                })
+                    .ShowDialog();
+        }
+
+        private static string GetPakPath()
+        {
+            try
+            {
+                string mordhauId = "629760";
+                string steam32 = "SOFTWARE\\VALVE\\";
+                string steam64 = "SOFTWARE\\Wow6432Node\\Valve\\";
+                string steam32path;
+                string steam64path;
+                string config32path;
+                string config64path;
+                RegistryKey key32 = Registry.LocalMachine.OpenSubKey(steam32);
+                RegistryKey key64 = Registry.LocalMachine.OpenSubKey(steam64);
+
+                Regex pathReg = new Regex("\"path\"\\s*\"([^\"]*)\"[^}]*\"" + mordhauId + "\""); // Puts the path in group 1
+
+                if (key64 != null)
+                {
+                    foreach (string k64subKey in key64.GetSubKeyNames())
+                    {
+                        // Annoying.  So.  Something in here makes it hit that exception - in the one instance I've seen, for a k64subKey "Spacewar"
+                        // Which means, k64subKey isn't null.  We know key64 isn't null.  So how the hell?
+                        // Oh it's probably the subKey.GetValue... but no, that should just, return null.  null.ToString is... wait...
+                        // I guess that's probably it.  
+                        try
+                        {
+                            using (RegistryKey subKey = key64.OpenSubKey(k64subKey))
+                            {
+                                if (subKey != null)
+                                {
+                                    var keyValue = subKey.GetValue("InstallPath");
+                                    if (keyValue != null)
+                                    {
+                                        steam64path = keyValue.ToString();
+                                        config64path = steam64path + "/steamapps/libraryfolders.vdf";
+                                        if (File.Exists(config64path))
+                                        {
+                                            string config = File.ReadAllText(config64path);
+                                            if (pathReg.IsMatch(config)) // Not sure if this is necessary... 
+                                            {
+                                                Match m = pathReg.Match(config);
+                                                // Stop at the Content folder so other logic can detect and move/remove paks in the wrong folder?
+                                                // Nah.  They're not hurting anything there. 
+                                                return Path.Combine(m.Groups[1].Value, "steamapps", "common", "Mordhau", "Mordhau", "Content", "CustomPaks");
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            MessageBox.Show($"Failed to get subKey for {k64subKey} for x64\n{e.Message}\n{e.StackTrace}");
+                        } // Hopefully this never triggers, but if it does, it won't break anything (being inside the loop), and someone can tell me and I can fix it.  
+                    }
+                }
+
+                if (key32 != null)
+                {
+                    foreach (string k32subKey in key32.GetSubKeyNames())
+                    {
+                        try
+                        {
+                            using (RegistryKey subKey = key32.OpenSubKey(k32subKey))
+                            {
+                                if (subKey != null)
+                                {
+                                    var keyValue = subKey.GetValue("InstallPath");
+                                    if (keyValue != null)
+                                    {
+                                        steam32path = keyValue.ToString();
+                                        config32path = steam32path + "/steamapps/libraryfolders.vdf";
+                                        if (File.Exists(config32path))
+                                        {
+                                            string config = File.ReadAllText(config32path);
+                                            if (pathReg.IsMatch(config)) // Not sure if this is necessary... 
+                                            {
+                                                Match m = pathReg.Match(config);
+                                                return Path.Combine(m.Groups[1].Value, "steamapps", "common", "Mordhau", "Mordhau", "Content", "CustomPaks");
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            MessageBox.Show($"Failed to get subKey {k32subKey} for x32\n{e.Message}\n{e.StackTrace}");
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show($"General failure... \n{e.Message}\n{e.StackTrace}");
+            }
+
+            return string.Empty;
+        }
+
+        // Are arrow keys valid?  These names are all good WinForms names, are they good Mordhau names?  
+        private static string[] validConsoleKeys = new string[] { "PageDown", "PageUp", "Home", "End", "Insert", "Delete", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12" };
+
+        // Quiet is to do it automatically and not alert if there were changes.  Clicking the button explicitly makes quiet false
+        // forceMordhau is to force Mordhau to update to LuteBot and not the other way around; used when explicitly applying a new Console Key in LuteBot
+        public static void SetConsoleKey(bool quiet = true, bool forceMordhau = false)
+        {
+            // Checks the contents of the config file for valid console keys
+            // If any match the LuteBot setting, good
+            // If any valid ones are found and none match, set the LuteBot setting to one of the valid ones
+            // If no valid ones are found and no matches, add one
+            string configLocation = ConfigManager.GetProperty(PropertyItem.MordhauInputIniLocation);
+            string configContent = SaveManager.LoadMordhauConfig(configLocation);
+            configLocation = ConfigManager.GetProperty(PropertyItem.MordhauInputIniLocation); // Loading it may have changed it, make sure we're updated
+            string userKey = ConfigManager.GetProperty(PropertyItem.OpenConsole).Replace("Next", "PageDown"); // I think this is the only bad one
+            string newBind = $"ConsoleKeys={userKey}";
+            if (configContent != null)
+            {
+                if (!configContent.Contains(newBind))
+                {
+                    // The bind we have isn't set.  Check the ones that are set, and see if any are valid
+                    // While also setting up to insert, if we need to
+                    int index = -1;
+                    int length = -1;
+                    foreach (Match match in Regex.Matches(configContent, @"ConsoleKeys=(.*)"))
+                    {
+                        index = match.Index;
+                        length = match.Length;
+                        var detectedKey = match.Groups[1].Value.Trim();
+                        if (!forceMordhau && validConsoleKeys.Contains(detectedKey))
+                        {
+                            // They have a valid key bound, it just doesn't match ours
+                            // So, set ours to match.  Store the old one into UserSavedConsoleKey for reversion
+                            ConfigManager.SetProperty(PropertyItem.UserSavedConsoleKey, ConfigManager.GetProperty(PropertyItem.OpenConsole));
+                            ConfigManager.SetProperty(PropertyItem.OpenConsole, detectedKey);
+                            ConfigManager.SaveConfig();
+                            if (keyBindingForm != null)
+                                keyBindingForm.InitPropertiesList();
+                            MessageBox.Show($"Valid console key already bound in Mordhau: {detectedKey}\nLuteBot will use this console key", "Setup Complete");
+                            return;
+                        }
+                    }
+
+                    // If we get here, there were no valid keys bound.  So we insert the LuteBot key
+                    // TODO: make sure VoteNo is unbound or we might just spam no when playing; we are potentially double-binding
+                    if (index >= 0 && length > 0)
+                    {
+                        configContent = configContent.Insert((index + length), $"\n{newBind}");
+                        SaveManager.SaveMordhauConfig(configLocation, configContent);
+                        MessageBox.Show($"Successfully configured Mordhau Console Key to {userKey}\n\nIf Mordhau is open, you should restart it\nYou can revert this change in the Key Binding window", "Setup Complete");
+                    }
+                    else
+                    {
+                        MessageBox.Show("Could not find existing ConsoleKey binding in config to insert at\nYou will need to set the key yourself inside Mordhau Settings", "Setup Failed");
+                    }
+                }
+                else
+                {
+                    // If it already has the bind, do we alert them?  I think we want to run this automatically on startup and on binding change, so, no if it's already set
+                    // Unless we make this only explicit-run because maybe it could cause issues with localization?  But let's make it auto and if there are problems, fix them
+                    if (!quiet)
+                    {
+                        MessageBox.Show($"Your console key is already correctly bound to {userKey} in Mordhau", "Setup Complete");
+                    }
+                }
+            }
+            else
+            {
+                MessageBox.Show("Could not retrieve mordhau config to update your Console Key\nYou will need to set the key yourself inside Mordhau Settings", "Setup Failed");
+            }
+
+        }
+
+        public static void AutoConfigMordhau(object sender, EventArgs e)
+        {
+            SetConsoleKey(true);
         }
 
         private void HotkeyManager_SynchronizePressed(object sender, EventArgs e)
@@ -160,7 +720,7 @@ namespace LuteBot
                 PlayButton.Enabled = true;
                 MusicProgressBar.Enabled = true;
                 StopButton.Enabled = true;
-                
+
                 trackSelectionManager.UnloadTracks();
                 if (player.GetType() == typeof(MidiPlayer))
                 {
@@ -184,6 +744,8 @@ namespace LuteBot
                     Play();
                     autoplay = false;
                 }
+                if (trackSelectionForm != null && !trackSelectionForm.IsDisposed && trackSelectionForm.IsHandleCreated)
+                    trackSelectionForm.Invoke((MethodInvoker)delegate { trackSelectionForm.Invalidate(); trackSelectionForm.RefreshOffsetPanel(); }); // Invoking just in case this is on a diff thread somehow
             }
             else
             {
@@ -311,6 +873,8 @@ namespace LuteBot
             if (ConfigManager.GetBooleanProperty(PropertyItem.SoundBoard))
             {
                 soundBoardForm = new SoundBoardForm(soundBoardManager);
+                soundBoardForm.StartPosition = FormStartPosition.Manual;
+                soundBoardForm.Location = new Point(0, 0);
                 Point coords = WindowPositionUtils.CheckPosition(ConfigManager.GetCoordsProperty(PropertyItem.SoundBoardPos));
                 soundBoardForm.Show();
                 soundBoardForm.Top = coords.Y;
@@ -319,6 +883,8 @@ namespace LuteBot
             if (ConfigManager.GetBooleanProperty(PropertyItem.PlayList))
             {
                 playListForm = new PlayListForm(playList);
+                playListForm.StartPosition = FormStartPosition.Manual;
+                playListForm.Location = new Point(0, 0);
                 Point coords = WindowPositionUtils.CheckPosition(ConfigManager.GetCoordsProperty(PropertyItem.PlayListPos));
                 playListForm.Show();
                 playListForm.Top = coords.Y;
@@ -328,7 +894,9 @@ namespace LuteBot
             if (ConfigManager.GetBooleanProperty(PropertyItem.TrackSelection))
             {
                 var midiPlayer = player as MidiPlayer;
-                trackSelectionForm = new TrackSelectionForm(trackSelectionManager, midiPlayer.mordhauOutDevice);
+                trackSelectionForm = new TrackSelectionForm(trackSelectionManager, midiPlayer.mordhauOutDevice, midiPlayer.rustOutDevice, this);
+                trackSelectionForm.StartPosition = FormStartPosition.Manual;
+                trackSelectionForm.Location = new Point(0, 0);
                 Point coords = WindowPositionUtils.CheckPosition(ConfigManager.GetCoordsProperty(PropertyItem.TrackSelectionPos));
                 trackSelectionForm.Show();
                 trackSelectionForm.Top = coords.Y;
@@ -337,6 +905,8 @@ namespace LuteBot
             if (ConfigManager.GetBooleanProperty(PropertyItem.LiveMidi))
             {
                 liveInputForm = new LiveInputForm(liveMidiManager);
+                liveInputForm.StartPosition = FormStartPosition.Manual;
+                liveInputForm.Location = new Point(0, 0);
                 Point coords = WindowPositionUtils.CheckPosition(ConfigManager.GetCoordsProperty(PropertyItem.LiveMidiPos));
                 liveInputForm.Show();
                 liveInputForm.Top = coords.Y;
@@ -345,6 +915,8 @@ namespace LuteBot
             if (ConfigManager.GetBooleanProperty(PropertyItem.PartitionList))
             {
                 partitionsForm = new PartitionsForm(trackSelectionManager, player);
+                partitionsForm.StartPosition = FormStartPosition.Manual;
+                partitionsForm.Location = new Point(0, 0);
                 Point coords = WindowPositionUtils.CheckPosition(ConfigManager.GetCoordsProperty(PropertyItem.PartitionListPos));
                 partitionsForm.Show();
                 partitionsForm.Top = coords.Y;
@@ -360,12 +932,15 @@ namespace LuteBot
 
         private void KeyBindingToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            (new KeyBindingForm()).ShowDialog();
+            if (keyBindingForm == null)
+                keyBindingForm = new KeyBindingForm();
+            keyBindingForm.InitPropertiesList();
+            keyBindingForm.ShowDialog();
         }
 
         private void SettingsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            (new SettingsForm(player as MidiPlayer)).ShowDialog();
+            (new SettingsForm(player as MidiPlayer, this)).ShowDialog();
             player.Pause();
         }
 
@@ -577,12 +1152,14 @@ namespace LuteBot
             if (trackSelectionForm == null || trackSelectionForm.IsDisposed)
             {
                 var midiPlayer = player as MidiPlayer;
-                trackSelectionForm = new TrackSelectionForm(trackSelectionManager, midiPlayer.mordhauOutDevice);
+                trackSelectionForm = new TrackSelectionForm(trackSelectionManager, midiPlayer.mordhauOutDevice, midiPlayer.rustOutDevice, this);
                 Point coords = WindowPositionUtils.CheckPosition(ConfigManager.GetCoordsProperty(PropertyItem.TrackSelectionPos));
-                trackSelectionForm.Show();
                 trackSelectionForm.Top = coords.Y;
                 trackSelectionForm.Left = coords.X;
             }
+            trackSelectionForm.Show();
+            trackSelectionForm.BringToFront();
+            trackSelectionForm.Focus();
         }
 
         private static IntPtr SetHook(LowLevelKeyboardProc proc)
@@ -627,6 +1204,8 @@ namespace LuteBot
         {
             GuildLibraryForm guildLibraryForm = new GuildLibraryForm(this);
             guildLibraryForm.Show();
+            guildLibraryForm.BringToFront();
+            guildLibraryForm.Focus();
         }
 
 
@@ -650,10 +1229,24 @@ namespace LuteBot
             var data = trackSelectionManager.GetTrackSelectionData();
             player.LoadFile(currentTrackName);
             trackSelectionManager.SetTrackSelectionData(data);
-            trackSelectionManager.SaveTrackManager();
+            //trackSelectionManager.SaveTrackManager(); // Don't save when we reload, that's bad.  
             if (trackSelectionForm != null && !trackSelectionForm.IsDisposed && trackSelectionForm.IsHandleCreated) // Everything I can think to check
-                trackSelectionForm.Invoke((MethodInvoker)delegate { trackSelectionForm.Refresh(); }); // Invoking just in case this is on a diff thread somehow
+                trackSelectionForm.Invoke((MethodInvoker)delegate { trackSelectionForm.Invalidate(); trackSelectionForm.RefreshOffsetPanel(); }); // Invoking just in case this is on a diff thread somehow
             Refresh();
+        }
+
+
+        public void OnInstrumentChanged(int oldInstrument)
+        {
+            // This is called when an instrument is changed.  TrackSelectionManager should be updated with the new config values
+            // Though first we'll have to setup the data to actually have different values based on the currently selected instrument.
+            trackSelectionManager.UpdateTrackSelectionForInstrument(oldInstrument);
+            // MordhauOutDevice should be refreshed
+            player.mordhauOutDevice.UpdateNoteIdBounds();
+            // And TrackSelectionForm should be refreshed
+            if (trackSelectionForm != null && !trackSelectionForm.IsDisposed && trackSelectionForm.IsHandleCreated) // Everything I can think to check
+                trackSelectionForm.Invoke((MethodInvoker)delegate { trackSelectionForm.InitLists(); trackSelectionForm.RefreshOffsetPanel(); }); // Invoking just in case this is on a diff thread somehow
+
         }
 
         public enum Totebots
@@ -682,6 +1275,146 @@ namespace LuteBot
             { Totebots.Percussion, "4c6e27a2-4c35-4df3-9794-5e206fef9012" }
         };
 
+        private void exportToScrapMechanicToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            // Should save a .json file with scrap mechanic info to play the song
+            // This is going to be long and hard.
+
+
+            // Pitch on the totebot heads is a value from 0.0 to 1.0, and covers two octaves (0-23)
+            // 1 tick is 25ms
+
+            // Make all the axes and positions match, except the switch, for a tiny version
+
+            // So the way we handle this, if we construct a List<SMNote> of each note in order
+            // We just pass it in to our function that we just wrote and get this whole thing out
+
+            // We need to convert Midi ticks to game ticks, where a game tick is 25ms
+            // Formula: ms = 60000 / (BPM * PPQ)
+            // BPM and PPQ should be in the player somewhere - PPQ = Division, BPM = Tempo
+
+            // Let's popup a settings window...
+
+            ScrapMechanicConfigForm configForm = new ScrapMechanicConfigForm(player);
+            var dialogResult = configForm.ShowDialog(this);
+            if (dialogResult != DialogResult.OK)
+                return;
+
+
+            List<SMNote> onNotes = new List<SMNote>();
+            List<SMNote> notes = new List<SMNote>();
+            toteHeads = new List<ToteHead>();
+            durationTimers = new List<SMTimer>();
+            startTimers = new List<SMTimer>();
+            extensionTimers = new List<SMTimer>();
+
+            // Enforce loading of filtering values
+            player.mordhauOutDevice.UpdateNoteIdBounds();
+            int tempo = player.sequence.FirstTempo;
+
+            if (!string.IsNullOrEmpty(currentTrackName))
+                foreach (var track in player.sequence)
+                {
+                    foreach (var note in track.Iterator())
+                    {
+                        if (note.MidiMessage.MessageType == MessageType.Channel)
+                        {
+                            ChannelMessage cm = note.MidiMessage as ChannelMessage;
+                            double msPerTick = tempo / player.sequence.Division; // tempo may change as we move along, watch for issues with getting this now
+
+                            if (cm.Command == ChannelCommand.NoteOn && cm.Data2 > 0) // Velocity > 0
+                            {
+                                int gameTicksStart = (int)Math.Ceiling(note.AbsoluteTicks * msPerTick / 1000 / 25); // Hopefully we don't have to turn this into seconds also
+
+                                // Temporarily...
+                                //if (gameTicksStart > 800)
+                                //    break;
+
+
+                                var filtered = player.mordhauOutDevice.FilterNote(cm, 0);
+
+                                var newNote = new SMNote()
+                                {
+                                    channel = cm.MidiChannel,
+                                    midiEvent = note,
+                                    startTicks = gameTicksStart,
+                                    noteNum = filtered.Data1 - player.mordhauOutDevice.LowNoteId,
+                                    velocity = filtered.Data2,
+                                    flavor = (TotebotTypes)configForm.TrackTypeDict[filtered.MidiChannel],
+                                    instrument = (Totebots)configForm.TrackCategoryDict[filtered.MidiChannel],
+                                    internalId = onNotes.Count + notes.Count, // I don't think I use this, oh well
+                                    filtered = filtered,
+                                    durationTicks = -1
+                                };
+
+                                // And the duration... we need a NoteOff before we can know
+                                onNotes.Add(newNote);
+                                // But we need to add it now to preserve the order... 
+                                // We'll just sort them afterward
+                            }
+                            else if (cm.Command == ChannelCommand.NoteOff || (cm.Command == ChannelCommand.NoteOn && cm.Data2 == 0))
+                            {
+                                var onNote = onNotes.Where(n => ((ChannelMessage)n.midiEvent.MidiMessage).MidiChannel == cm.MidiChannel && ((ChannelMessage)n.midiEvent.MidiMessage).Data1 == cm.Data1).FirstOrDefault();
+
+                                // Same channel and note... must be us
+                                if (onNote != null)
+                                {
+                                    int gameTicksDuration = (int)Math.Ceiling((note.AbsoluteTicks - onNote.midiEvent.AbsoluteTicks) * msPerTick / 1000 / 25);
+                                    // Everything was a bit too fast, a ceil should help
+                                    onNotes.Remove(onNote);
+                                    if (onNote.filtered.Data2 > 0) // Still not muted
+                                    {
+                                        onNote.durationTicks = gameTicksDuration;
+                                        notes.Add(onNote);
+                                    }
+
+                                }
+                            }
+                        }
+                        else if (note.MidiMessage.MessageType == MessageType.Meta)
+                        {
+                            MetaMessage mm = note.MidiMessage as MetaMessage;
+                            if (mm.MetaType == MetaType.Tempo)
+                            {
+                                // As for getting the actual Tempo out of it... 
+                                var bytes = mm.GetBytes();
+                                // Apparently it's... backwards?  Different endianness or whatever...
+                                byte[] tempoBytes = new byte[4];
+                                tempoBytes[2] = bytes[0];
+                                tempoBytes[1] = bytes[1];
+                                tempoBytes[0] = bytes[2];
+                                tempo = BitConverter.ToInt32(tempoBytes, 0);
+                            }
+                        }
+                    }
+                }
+
+            // Now sort notes list by the startTicks ... hopefully ascending
+            notes.Sort(new Comparison<SMNote>((n, m) => n.startTicks - m.startTicks));
+            // And make the files
+            Guid guid = Guid.NewGuid();
+            string baseDir = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + Path.DirectorySeparatorChar + "SM Blueprints" + Path.DirectorySeparatorChar + Path.GetFileNameWithoutExtension(currentTrackName) + Path.DirectorySeparatorChar + guid + Path.DirectorySeparatorChar;
+            Directory.CreateDirectory(baseDir);
+
+
+            using (StreamWriter writer = new StreamWriter(baseDir + Path.DirectorySeparatorChar + "blueprint.json"))
+            {
+                writer.Write(getSMBlueprint(notes));
+            }
+            using (StreamWriter writer = new StreamWriter(baseDir + "description.json"))
+            {
+                writer.WriteLine("{");
+                writer.WriteLine("\"description\" : \"" + Path.GetFileNameWithoutExtension(currentTrackName) + " MIDI converted using LuteBot3\",");
+                writer.WriteLine("\"localId\" : \"" + guid + "\",");
+                writer.WriteLine("\"name\" : \"" + Path.GetFileNameWithoutExtension(currentTrackName) + "\",");
+                writer.WriteLine("\"type\" : \"Blueprint\",");
+                writer.WriteLine("\"version\" : 0");
+                writer.WriteLine("}");
+            }
+            Process.Start(baseDir);
+            if (!configForm.IsDisposed)
+                configForm.Dispose();
+        }
 
         public class SMNote
         {
@@ -1101,6 +1834,38 @@ namespace LuteBot
             if (partitionsForm == null || partitionsForm.IsDisposed)
                 partitionsForm = new PartitionsForm(trackSelectionManager, player);
             partitionsForm.Show();
+            partitionsForm.BringToFront();
+            partitionsForm.Focus();
+        }
+
+        private void adjustLutemodPartitionsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            var adjustForm = new PartitionAdjustmentForm();
+            adjustForm.Show();
+        }
+
+        private void installLuteModToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            InstallLuteMod();
+        }
+
+        private void helpToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            var popup = new PopupForm("Help", "Useful Links and Info", "The Bard's Guild Wiki contains all information about LuteMod and LuteBot - and if it doesn't, you can add to it\n\nFurther troubleshooting is available in the #mordhau channel of the Bard's Guild Discord",
+                new Dictionary<string, string>() {
+                    { "What is LuteMod", "https://mordhau-bards-guild.fandom.com/wiki/LuteMod" } ,
+                    { "Getting Songs", "https://mordhau-bards-guild.fandom.com/wiki/Getting_Songs" },
+                    { "LuteBot Usage", "https://mordhau-bards-guild.fandom.com/wiki/LuteBot#Usage" },
+                    { "LuteMod Usage", "https://mordhau-bards-guild.fandom.com/wiki/LuteMod#Playing_Songs" },
+                    { "Flute and Duets", "https://mordhau-bards-guild.fandom.com/wiki/LuteMod#Flute_and_Duets" },
+                    { "The Bard's Guild Discord", "https://discord.gg/4xnJVuz" },
+                });
+            popup.ShowDialog();
+        }
+
+        private async void checkInstallUpdatesToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            await CheckUpdates(true);
         }
     }
 }

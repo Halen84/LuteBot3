@@ -20,6 +20,7 @@ namespace LuteBot.Core.Midi
         public Sequence sequence;
         private Sequencer sequencer;
         public MordhauOutDevice mordhauOutDevice;
+        public RustOutDevice rustOutDevice;
         public TrackSelectionManager trackSelectionManager;
 
         private bool isPlaying;
@@ -31,6 +32,7 @@ namespace LuteBot.Core.Midi
             trackSelectionManager.Player = this;
             isPlaying = false;
             mordhauOutDevice = new MordhauOutDevice(trackSelectionManager);
+            rustOutDevice = new RustOutDevice();
             this.trackSelectionManager = trackSelectionManager;
             sequence = new Sequence
             {
@@ -46,19 +48,26 @@ namespace LuteBot.Core.Midi
             sequencer.SysExMessagePlayed += new System.EventHandler<Sanford.Multimedia.Midi.SysExMessageEventArgs>(this.HandleSysExMessagePlayed);
             sequencer.Chased += new System.EventHandler<Sanford.Multimedia.Midi.ChasedEventArgs>(this.HandleChased);
             sequencer.Stopped += new System.EventHandler<Sanford.Multimedia.Midi.StoppedEventArgs>(this.HandleStopped);
+            sequence.LoadCompleted += HandleLoadCompleted;
 
             if (!(OutputDevice.DeviceCount == 0))
             {
                 outDevice = new OutputDevice(ConfigManager.GetIntegerProperty(PropertyItem.OutputDevice));
-                sequence.LoadCompleted += HandleLoadCompleted;
             }
         }
 
         public void ResetDevice()
         {
-            outDevice.Reset();
-            outDevice.Dispose();
-            outDevice = new OutputDevice(ConfigManager.GetIntegerProperty(PropertyItem.OutputDevice));
+            if (outDevice != null)
+            {
+                outDevice.Reset();
+                //outDevice.Dispose();
+            }
+            //try
+            //{
+            //    outDevice = new OutputDevice(ConfigManager.GetIntegerProperty(PropertyItem.OutputDevice));
+            //}
+            //catch { } // TODO: Somehow alert them that it didn't work
         }
 
         public void UpdateMutedTracks(TrackItem item)
@@ -72,7 +81,8 @@ namespace LuteBot.Core.Midi
             {
                 sequencer.Continue();
             }
-            outDevice.Reset();
+            if (outDevice != null)
+                outDevice.Reset();
         }
 
         public Dictionary<int, string> GetMidiChannels()
@@ -171,7 +181,8 @@ namespace LuteBot.Core.Midi
 
         public override void ResetSoundEffects()
         {
-            outDevice.Reset();
+            if (outDevice != null)
+                outDevice.Reset();
         }
 
 
@@ -235,7 +246,8 @@ namespace LuteBot.Core.Midi
             isPlaying = false;
             sequencer.Stop();
             sequencer.Position = 0;
-            outDevice.Reset();
+            if (outDevice != null)
+                outDevice.Reset();
         }
 
         public override void Play()
@@ -263,7 +275,7 @@ namespace LuteBot.Core.Midi
             //midiOut.Dispose();
             isPlaying = false;
             sequencer.Stop();
-            if (!outDevice.IsDisposed)
+            if (outDevice != null && !outDevice.IsDisposed)
                 outDevice.Reset();
         }
 
@@ -285,6 +297,7 @@ namespace LuteBot.Core.Midi
 
         private void HandleLoadCompleted(object sender, AsyncCompletedEventArgs e)
         {
+            var startTime = DateTime.Now;
             lock (loadLock)
             {
                 if (e.Error == null)
@@ -305,7 +318,9 @@ namespace LuteBot.Core.Midi
                         trackSelectionManager.MaxNoteByChannel[i] = 0; // Pre-populate to reduce errors later
                         trackSelectionManager.MinNoteByChannel[i] = 127;
                     }
-                    
+
+                    //Parallel.ForEach(sequence, track =>
+                    //{
                     foreach (var track in sequence)
                     {
                         foreach (var midiEvent in track.Iterator())
@@ -350,20 +365,24 @@ namespace LuteBot.Core.Midi
                                 }
                             }
                         }
-                    }
+                    }//);
+                    Console.WriteLine("Read track data in " + (DateTime.Now - startTime).TotalMilliseconds);
                     // Now let's get a sorted list of drum note counts
                     // I can't figure out how to do this nicely.
-                    for (int i = 0; i < drumNoteCounts.Length; i++)
-                    {
-                        DrumNoteCounts.Add(new KeyValuePair<int, int>(i, drumNoteCounts[i]));
-                    }
-                    DrumNoteCounts = DrumNoteCounts.OrderBy((kvp) => kvp.Value).ToList();
+                    //for (int i = 0; i < drumNoteCounts.Length; i++)
+                    //{
+                    //    DrumNoteCounts.Add(new KeyValuePair<int, int>(i, drumNoteCounts[i]));
+                    //}
+                    //DrumNoteCounts = DrumNoteCounts.OrderBy((kvp) => kvp.Value).ToList();
 
                     base.LoadCompleted(this, e);
                     mordhauOutDevice.HighMidiNoteId = sequence.MaxNoteId;
                     mordhauOutDevice.LowMidiNoteId = sequence.MinNoteId;
+                    rustOutDevice.HighMidiNoteId = sequence.MaxNoteId;
+                    rustOutDevice.LowMidiNoteId = sequence.MinNoteId;
                 }
             }
+            
         }
 
 
@@ -380,7 +399,7 @@ namespace LuteBot.Core.Midi
         {
             foreach (ChannelMessage message in e.Messages)
             {
-                if (ConfigManager.GetBooleanProperty(PropertyItem.SoundEffects) && !disposed)
+                if (ConfigManager.GetBooleanProperty(PropertyItem.SoundEffects) && !disposed && outDevice != null)
                 {
                     outDevice.Send(message);
                 }
@@ -389,7 +408,7 @@ namespace LuteBot.Core.Midi
 
         private void HandleChased(object sender, ChasedEventArgs e)
         {
-            if (ConfigManager.GetBooleanProperty(PropertyItem.SoundEffects) && !disposed)
+            if (ConfigManager.GetBooleanProperty(PropertyItem.SoundEffects) && !disposed && outDevice != null)
             {
                 foreach (ChannelMessage message in e.Messages)
                 {
@@ -418,9 +437,42 @@ namespace LuteBot.Core.Midi
 
                     //midiOut.SendEvent(new Melanchall.DryWetMidi.Core.NoteOnEvent((Melanchall.DryWetMidi.Common.SevenBitNumber)filtered.Data1, (Melanchall.DryWetMidi.Common.SevenBitNumber)filtered.Data2));
                     // Below: Sound to match, then unfiltered sound.  Or leave commented for no sound.
-                    if (!outDevice.IsDisposed) // If they change song prefs while playing, this can fail, so just skip then
+                    if (outDevice != null && !outDevice.IsDisposed) // If they change song prefs while playing, this can fail, so just skip then
                         try
                         {
+                            if (ConfigManager.GetIntegerProperty(PropertyItem.Instrument) == 9)
+                            {
+                                // Drums... 
+                                // Ignore any notes that aren't on glockenspiel
+                                if (filtered.MidiChannel == 9) // glocken
+                                {
+                                    // Figure out where it ranks on DrumNoteCounts
+                                    //int drumNote = 0;
+                                    //for(int i = 0; i < DrumNoteCounts.Count(); i++)
+                                    //{ 
+                                    //    if(DrumNoteCounts[i].Key == filtered.Data1)
+                                    //    {
+                                    //        drumNote = i;
+                                    //        break;
+                                    //    }
+                                    //}
+                                    // Assume it's no longer 0 for now...
+                                    // Now just map it to a dictionary of most popular notes on drums
+                                    if (DrumMappings.MidiToRustMap.ContainsKey(filtered.Data1))
+                                    {
+                                        var newNote = new ChannelMessage(filtered.Command, filtered.MidiChannel, DrumMappings.MidiToRustMap[filtered.Data1], filtered.Data2);
+                                        outDevice.Send(newNote);
+                                        return;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                var note = rustOutDevice.FilterNote(filtered, trackSelectionManager.NoteOffset +
+                                    (trackSelectionManager.MidiChannelOffsets.ContainsKey(e.Message.MidiChannel) ? trackSelectionManager.MidiChannelOffsets[e.Message.MidiChannel] : 0));
+                                if (note != null)
+                                    outDevice.Send(note);
+                            }
                         }
                         catch (Exception) { } // Ignore exceptions, again, they might edit things while it's trying to play
                     //}
@@ -434,7 +486,8 @@ namespace LuteBot.Core.Midi
             }
             else
             {
-                outDevice.Send(trackSelectionManager.FilterMidiEvent(e.Message, e.TrackId));
+                if (outDevice != null)
+                    outDevice.Send(trackSelectionManager.FilterMidiEvent(e.Message, e.TrackId));
             }
         }
 
@@ -443,7 +496,8 @@ namespace LuteBot.Core.Midi
             //FinalizeMC();
             //midiOut.Dispose();
             isPlaying = false;
-            outDevice.Reset();
+            if (outDevice != null)
+                outDevice.Reset();
         }
 
         public List<LuteMod.Sequencing.Note> ExtractMidiContent()

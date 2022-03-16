@@ -57,6 +57,10 @@
       "Value": "24"
     },
     {
+      "Item": "ForbidsChords",
+      "Value": "False"
+    },
+    {
       "Item": "NumChords",
       "Value": "3"
     },
@@ -86,15 +90,15 @@
     },
     {
       "Item": "OpenConsole",
-      "Value": "Next"
+      "Value": "Home"
     },
     {
       "Item": "MordhauInputIniLocation",
-      "Value": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Mordhau\\Mordhau\\Config\\DefaultInput.ini"
+      "Value": ""
     },
     {
       "Item": "UserSavedConsoleKey",
-      "Value": "Next"
+      "Value": "Home"
     },
     {
       "Item": "MainWindowPos",
@@ -149,8 +153,32 @@
       "Value": "0"
     },
 	{
+      "Item": "Instrument",
+      "Value": "0"
+    },
+	{
       "Item": "Server",
       "Value": "127.0.0.1"
+    },
+    {
+      "Item": "FirstRun",
+      "Value": "True"
+    },
+    {
+      "Item": "LastVersion",
+      "Value": ""
+    },
+    {
+      "Item": "MajorUpdates",
+      "Value": "True"
+    },
+    {
+      "Item": "MinorUpdates",
+      "Value": "False"
+    },
+    {
+      "Item": "CheckForUpdates",
+      "Value": "True"
     }
   ]
 }

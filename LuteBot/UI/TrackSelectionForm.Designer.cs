@@ -47,6 +47,10 @@ namespace LuteBot.UI
             this.button1 = new System.Windows.Forms.Button();
             this.textBoxNotesForChords = new System.Windows.Forms.TextBox();
             this.label2 = new System.Windows.Forms.Label();
+            this.button2 = new System.Windows.Forms.Button();
+            this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
+            this.instrumentsBox = new System.Windows.Forms.ComboBox();
+            this.label3 = new System.Windows.Forms.Label();
             this.panel1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -79,16 +83,16 @@ namespace LuteBot.UI
             this.label1.Location = new System.Drawing.Point(16, 11);
             this.label1.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(168, 20);
+            this.label1.Size = new System.Drawing.Size(213, 20);
             this.label1.TabIndex = 9;
-            this.label1.Text = "List of Instruments";
+            this.label1.Text = "List of MIDI Instruments";
             // 
             // SongProfileSaveButton
             // 
             this.SongProfileSaveButton.Location = new System.Drawing.Point(16, 446);
             this.SongProfileSaveButton.Margin = new System.Windows.Forms.Padding(4);
             this.SongProfileSaveButton.Name = "SongProfileSaveButton";
-            this.SongProfileSaveButton.Size = new System.Drawing.Size(343, 37);
+            this.SongProfileSaveButton.Size = new System.Drawing.Size(214, 37);
             this.SongProfileSaveButton.TabIndex = 10;
             this.SongProfileSaveButton.Text = "Save Song Profile";
             this.SongProfileSaveButton.UseVisualStyleBackColor = true;
@@ -112,10 +116,10 @@ namespace LuteBot.UI
             // LoadProfileButton
             // 
             this.LoadProfileButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.LoadProfileButton.Location = new System.Drawing.Point(367, 446);
+            this.LoadProfileButton.Location = new System.Drawing.Point(466, 446);
             this.LoadProfileButton.Margin = new System.Windows.Forms.Padding(4);
             this.LoadProfileButton.Name = "LoadProfileButton";
-            this.LoadProfileButton.Size = new System.Drawing.Size(333, 37);
+            this.LoadProfileButton.Size = new System.Drawing.Size(234, 37);
             this.LoadProfileButton.TabIndex = 12;
             this.LoadProfileButton.Text = "Load Song Profile";
             this.LoadProfileButton.UseVisualStyleBackColor = true;
@@ -206,7 +210,7 @@ namespace LuteBot.UI
             // 
             // textBoxNotesForChords
             // 
-            this.textBoxNotesForChords.Location = new System.Drawing.Point(367, 417);
+            this.textBoxNotesForChords.Location = new System.Drawing.Point(255, 415);
             this.textBoxNotesForChords.Name = "textBoxNotesForChords";
             this.textBoxNotesForChords.Size = new System.Drawing.Size(33, 22);
             this.textBoxNotesForChords.TabIndex = 20;
@@ -215,17 +219,55 @@ namespace LuteBot.UI
             // label2
             // 
             this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(244, 420);
+            this.label2.Location = new System.Drawing.Point(132, 418);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(113, 17);
             this.label2.TabIndex = 21;
             this.label2.Text = "Notes Per Chord";
+            // 
+            // button2
+            // 
+            this.button2.Location = new System.Drawing.Point(238, 446);
+            this.button2.Margin = new System.Windows.Forms.Padding(4);
+            this.button2.Name = "button2";
+            this.button2.Size = new System.Drawing.Size(220, 37);
+            this.button2.TabIndex = 22;
+            this.button2.Text = "Save As...";
+            this.button2.UseVisualStyleBackColor = true;
+            this.button2.Click += new System.EventHandler(this.button2_Click);
+            // 
+            // saveFileDialog1
+            // 
+            this.saveFileDialog1.DefaultExt = "mid";
+            this.saveFileDialog1.Filter = "Midi files|*.mid";
+            // 
+            // instrumentsBox
+            // 
+            this.instrumentsBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.instrumentsBox.FormattingEnabled = true;
+            this.instrumentsBox.Location = new System.Drawing.Point(466, 415);
+            this.instrumentsBox.Name = "instrumentsBox";
+            this.instrumentsBox.Size = new System.Drawing.Size(230, 24);
+            this.instrumentsBox.TabIndex = 23;
+            this.instrumentsBox.SelectedIndexChanged += new System.EventHandler(this.instrumentsBox_SelectedIndexChanged);
+            // 
+            // label3
+            // 
+            this.label3.AutoSize = true;
+            this.label3.Location = new System.Drawing.Point(380, 420);
+            this.label3.Name = "label3";
+            this.label3.Size = new System.Drawing.Size(74, 17);
+            this.label3.TabIndex = 24;
+            this.label3.Text = "Instrument";
             // 
             // TrackSelectionForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(716, 742);
+            this.Controls.Add(this.label3);
+            this.Controls.Add(this.instrumentsBox);
+            this.Controls.Add(this.button2);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.textBoxNotesForChords);
             this.Controls.Add(this.button1);
@@ -247,7 +289,7 @@ namespace LuteBot.UI
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.Name = "TrackSelectionForm";
-            this.Text = "Track Selection";
+            this.Text = "Track Filtering";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.TrackSelectionForm_Closing);
             this.panel1.ResumeLayout(false);
             this.ResumeLayout(false);
@@ -271,5 +313,9 @@ namespace LuteBot.UI
         private Button button1;
         private TextBox textBoxNotesForChords;
         private Label label2;
+        private Button button2;
+        private SaveFileDialog saveFileDialog1;
+        private ComboBox instrumentsBox;
+        private Label label3;
     }
 }

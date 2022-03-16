@@ -26,6 +26,11 @@
         NumChords,
         DebugMode,
         OutputDevice,
+        Instrument,
+        ForbidsChords,
+        MajorUpdates,
+        MinorUpdates,
+        CheckForUpdates,
 
         //keybinds
         Play,
@@ -45,6 +50,8 @@
         LastMidiDeviceUsed,
         LastMidiLowBoundUsed,
         Server,
+        FirstRun,
+        LastVersion,
 
         //window positions
         MainWindowPos,

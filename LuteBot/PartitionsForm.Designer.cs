@@ -1,4 +1,6 @@
-﻿namespace LuteBot
+﻿using LuteBot.UI.Utils;
+
+namespace LuteBot
 {
     partial class PartitionsForm
     {
@@ -28,8 +30,13 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.listBoxPartitions = new System.Windows.Forms.ListBox();
-            this.button2 = new System.Windows.Forms.Button();
+            this.listBoxPartitions = new LuteBot.UI.Utils.CustomListBox();
+            this.savePartitionButton = new System.Windows.Forms.Button();
+            this.menuStrip1 = new System.Windows.Forms.MenuStrip();
+            this.optionsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.importPartitionsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.openSavFolderToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
             // listBoxPartitions
@@ -40,43 +47,86 @@
             | System.Windows.Forms.AnchorStyles.Right)));
             this.listBoxPartitions.FormattingEnabled = true;
             this.listBoxPartitions.ItemHeight = 16;
-            this.listBoxPartitions.Location = new System.Drawing.Point(12, 12);
+            this.listBoxPartitions.Location = new System.Drawing.Point(12, 65);
             this.listBoxPartitions.Name = "listBoxPartitions";
             this.listBoxPartitions.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended;
-            this.listBoxPartitions.Size = new System.Drawing.Size(497, 500);
+            this.listBoxPartitions.Size = new System.Drawing.Size(497, 484);
             this.listBoxPartitions.TabIndex = 0;
             this.listBoxPartitions.DragDrop += new System.Windows.Forms.DragEventHandler(this.PartitionIndexBox_DragDrop);
             this.listBoxPartitions.DragOver += new System.Windows.Forms.DragEventHandler(this.PartitionIndexBox_DragOver);
             this.listBoxPartitions.MouseDown += new System.Windows.Forms.MouseEventHandler(this.PartitionIndexBox_MouseDown);
             // 
-            // button2
+            // savePartitionButton
             // 
-            this.button2.Anchor = System.Windows.Forms.AnchorStyles.Bottom;
-            this.button2.Location = new System.Drawing.Point(12, 516);
-            this.button2.Name = "button2";
-            this.button2.Size = new System.Drawing.Size(155, 26);
-            this.button2.TabIndex = 2;
-            this.button2.Text = "Save Current Song";
-            this.button2.UseVisualStyleBackColor = true;
-            this.button2.Click += new System.EventHandler(this.button2_Click);
+            this.savePartitionButton.Anchor = System.Windows.Forms.AnchorStyles.Top;
+            this.savePartitionButton.Location = new System.Drawing.Point(173, 33);
+            this.savePartitionButton.Name = "savePartitionButton";
+            this.savePartitionButton.Size = new System.Drawing.Size(155, 26);
+            this.savePartitionButton.TabIndex = 2;
+            this.savePartitionButton.Text = "Save Current Song";
+            this.savePartitionButton.UseVisualStyleBackColor = true;
+            this.savePartitionButton.Click += new System.EventHandler(this.savePartitionsButton_Click);
+            // 
+            // menuStrip1
+            // 
+            this.menuStrip1.ImageScalingSize = new System.Drawing.Size(20, 20);
+            this.menuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.optionsToolStripMenuItem});
+            this.menuStrip1.Location = new System.Drawing.Point(0, 0);
+            this.menuStrip1.Name = "menuStrip1";
+            this.menuStrip1.Size = new System.Drawing.Size(524, 28);
+            this.menuStrip1.TabIndex = 5;
+            this.menuStrip1.Text = "menuStrip1";
+            // 
+            // optionsToolStripMenuItem
+            // 
+            this.optionsToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.importPartitionsToolStripMenuItem,
+            this.openSavFolderToolStripMenuItem});
+            this.optionsToolStripMenuItem.Name = "optionsToolStripMenuItem";
+            this.optionsToolStripMenuItem.Size = new System.Drawing.Size(75, 24);
+            this.optionsToolStripMenuItem.Text = "Options";
+            // 
+            // importPartitionsToolStripMenuItem
+            // 
+            this.importPartitionsToolStripMenuItem.Name = "importPartitionsToolStripMenuItem";
+            this.importPartitionsToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
+            this.importPartitionsToolStripMenuItem.Text = "Import Partitions";
+            this.importPartitionsToolStripMenuItem.Click += new System.EventHandler(this.button1_Click);
+            // 
+            // openSavFolderToolStripMenuItem
+            // 
+            this.openSavFolderToolStripMenuItem.Name = "openSavFolderToolStripMenuItem";
+            this.openSavFolderToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
+            this.openSavFolderToolStripMenuItem.Text = "Open Sav Folder";
+            this.openSavFolderToolStripMenuItem.Click += new System.EventHandler(this.button3_Click);
             // 
             // PartitionsForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(524, 550);
-            this.Controls.Add(this.button2);
+            this.ClientSize = new System.Drawing.Size(524, 557);
+            this.Controls.Add(this.savePartitionButton);
             this.Controls.Add(this.listBoxPartitions);
+            this.Controls.Add(this.menuStrip1);
+            this.MainMenuStrip = this.menuStrip1;
             this.Name = "PartitionsForm";
             this.Text = "LuteMod Partitions";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.PartitionsForm_FormClosing);
+            this.menuStrip1.ResumeLayout(false);
+            this.menuStrip1.PerformLayout();
             this.ResumeLayout(false);
+            this.PerformLayout();
 
         }
 
         #endregion
 
-        private System.Windows.Forms.ListBox listBoxPartitions;
-        private System.Windows.Forms.Button button2;
+        private CustomListBox listBoxPartitions;
+        private System.Windows.Forms.Button savePartitionButton;
+        private System.Windows.Forms.MenuStrip menuStrip1;
+        private System.Windows.Forms.ToolStripMenuItem optionsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem importPartitionsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem openSavFolderToolStripMenuItem;
     }
 }

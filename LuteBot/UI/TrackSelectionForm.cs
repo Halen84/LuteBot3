@@ -19,16 +19,30 @@ namespace LuteBot.UI
     {
         TrackSelectionManager trackSelectionManager;
         MordhauOutDevice _mordhauOut;
+        RustOutDevice _rustOut;
+        LuteBotForm mainForm;
 
         // We need only one out device, might as well use rust, but take both for now cuz why not, feels unfair
         // Though they both get updated with the same values at the same time, for what we're doing
-        public TrackSelectionForm(TrackSelectionManager trackSelectionManager, MordhauOutDevice mordhauOut)
+        public TrackSelectionForm(TrackSelectionManager trackSelectionManager, MordhauOutDevice mordhauOut, RustOutDevice rustOut, LuteBotForm mainForm)
         {
             _mordhauOut = mordhauOut;
+            _rustOut = rustOut;
+            this.mainForm = mainForm;
             this.trackSelectionManager = trackSelectionManager;
             trackSelectionManager.TrackChanged += new EventHandler(TrackChangedHandler);
             this.Load += TrackSelectionForm_Load;
             InitializeComponent();
+
+            SuspendLayout();
+            Instrument.Read();
+            instrumentsBox.DisplayMember = "Name";
+            foreach (Instrument i in Instrument.Prefabs)
+                instrumentsBox.Items.Add(i);
+            instrumentsBox.SelectedIndex = ConfigManager.GetIntegerProperty(PropertyItem.Instrument);
+            ResumeLayout();
+            
+
             InitLists();
             trackSelectionManager.autoLoadProfile = AutoActivateCheckBox.Checked;
             typeof(Panel).InvokeMember("DoubleBuffered", BindingFlags.SetProperty
@@ -38,6 +52,8 @@ namespace LuteBot.UI
             textBoxNotesForChords.Text = trackSelectionManager.NumChords.ToString();
 
             IO.KB.ActionManager.NotePlayed += _mordhauOut_notePlayed;
+
+            
         }
 
         private void _mordhauOut_notePlayed(object sender, int channel)
@@ -167,6 +183,8 @@ namespace LuteBot.UI
             }
         }
 
+        public void RefreshOffsetPanel() => OffsetPanel.Refresh();
+
         internal class ChannelData
         {
             internal string name { get; set; }
@@ -222,6 +240,7 @@ namespace LuteBot.UI
             int width = columnWidth * 10 * 12;
             int height = rowHeight * numRows;
             // Let's go ahead and get the instrument info
+
             int lowest = ConfigManager.GetIntegerProperty(PropertyItem.LowestNoteId) + ConfigManager.GetIntegerProperty(PropertyItem.LowestPlayedNote);
             int noteCount = ConfigManager.GetIntegerProperty(PropertyItem.AvaliableNoteCount);
             // Try to find the center
@@ -230,8 +249,18 @@ namespace LuteBot.UI
             center -= center % 12;
             int centerLine = center / 12; // This gives us the octave, like 0, 1, 2 usually
             // Now just take 5 - centerLine
-            int centerOffset = xPad/2 - centerLine;
+            //int centerOffset = xPad/2 - centerLine;
+            int centerOffset = 0;
             // and do the label as lineNum - that
+
+                // Later notes: I don't know what centerLine and centerOffset are for.  centerLine represents the octave at the center, usually 4 for C4
+                // centerOffset is... idk?  How many octaves we need to offset from 0 on far left, I guess
+                // No idea what xPad has to do with it.
+
+                // Wait what
+                // center is the midi note value for the center of the instrument range (rounded down if not even octave)
+                // centerLine is the octave
+                // centerOffset is ... I still don't know.  
 
             // We're going to iterate twice so the background grids are behind everything
             for (int x = xPad; x <= OffsetPanel.Width; x += columnWidth)
@@ -241,7 +270,7 @@ namespace LuteBot.UI
 
             // Draw the instrument bar first so the rest of the grid goes over it
             // We use -12 here because all logic and values like LowestPlayedNote assume MIDI0 = C0, but that's wrong, MIDI0=C-1
-            int rectStartX = (lowest * columnWidth) + xPad + (centerOffset * 12 * columnWidth) - 12 * columnWidth;
+            int rectStartX = (lowest * columnWidth) + xPad;// - 12*columnWidth
             Rectangle instrumentRect = new Rectangle(rectStartX, 1, (noteCount * columnWidth), rowHeight - 1);
             g.FillRectangle(instrumentBarBrush, instrumentRect);
 
@@ -306,7 +335,7 @@ namespace LuteBot.UI
                 // Draw vertical line
 
                 // Put labels at the bottom
-                int note = ((x - xPad) / columnWidth);
+                int note = ((x - xPad) / columnWidth) - centerOffset*12;
 
                 if (isAdvanced)
                 { // For brevity and cuz I think it's safe here, assume the dicts are populated
@@ -324,7 +353,7 @@ namespace LuteBot.UI
                             int effectiveNote = trackSelectionManager.MinNoteByChannel[kvp.Key.Id] + (note - midiLowest);
                             if (effectiveNote % 12 == 0)
                             {
-                                g.DrawString($"C{effectiveNote / 12 - centerOffset}", gridFont, new SolidBrush(channelColors[kvp.Key.Id]), x - xPad, labelY);
+                                g.DrawString($"C{effectiveNote / 12}", gridFont, new SolidBrush(channelColors[kvp.Key.Id]), x - xPad, labelY);
                             }
                         }
                         labelY += labelHeight;
@@ -336,25 +365,27 @@ namespace LuteBot.UI
                     // We want to add labels of what the draggableRect is at too (and lock it when it drags)
                     // So we need to find our note relative to that... 
                     // So just get _rustOut.LowMidiNoteId + trackSelectionManager.NoteOffset - this is the 'note' it starts at
-                    /*int midiLowest = _rustOut.LowMidiNoteId + trackSelectionManager.NoteOffset;
+                    int midiLowest = _rustOut.LowMidiNoteId + trackSelectionManager.NoteOffset;
                     int midiHighest = _rustOut.HighMidiNoteId + trackSelectionManager.NoteOffset;
                     if (note >= midiLowest && note <= midiHighest)
                     {
                         // We can consider showing labels...
                         // So then, (note - midiLowest) is how many notes out we are from midiLowest
                         // So midiLowest + (note - midiLowest) is our effective note here
+
+                        // Also both mordhauOut and rustOut should always have these values set for a loaded song
                         int effectiveNote = _rustOut.LowMidiNoteId + (note - midiLowest);
                         if (effectiveNote % 12 == 0)
                         {
-                            g.DrawString($"C{effectiveNote / 12 - centerOffset}", gridFont, draggableRectBrush, x - xPad, height + padding + labelHeight);
+                            g.DrawString($"C{effectiveNote / 12}", gridFont, draggableRectBrush, x - xPad, height + padding + labelHeight);
                         }
-                    }*/
+                    }
                 }
 
 
                 if (note % 12 == 0)
                 {
-                    g.DrawString($"C{note / 12 - centerOffset}", gridFont, instrumentBarBrush, x - xPad, height + padding);
+                    g.DrawString($"C{note / 12}", gridFont, instrumentBarBrush, x - xPad, height + padding);
                     g.DrawLine(gridHighlightPen, x, 0, x, height);
                 }
 
@@ -368,18 +399,24 @@ namespace LuteBot.UI
             // instrumentRect and draggableRect
             // I'm too lazy to center the labels
             // But fine we need some rects behind them too.  
-            int instrumentLabelWidth = 115;
+            //int instrumentLabelWidth = (int)(115 * (g.DpiX/96f));
+            int instrumentLabelWidth = (int)g.MeasureString("Instrument Range", labelFont).Width + 4;
             Rectangle instrumentLabelRect = new Rectangle(instrumentRect.X + instrumentRect.Width / 2 - instrumentLabelWidth / 2, instrumentRect.Y + rowHeight / 2 - 9, instrumentLabelWidth, 18);
             Rectangle instrumentLabelBgRect = new Rectangle(instrumentLabelRect.X + 1, instrumentLabelRect.Y + 1, instrumentLabelRect.Width + 1, instrumentLabelRect.Height + 1);
             g.FillRectangle(shadowBrush, instrumentLabelBgRect);
             g.FillRectangle(labelBgBrush, instrumentLabelRect);
+            
             g.DrawString("Instrument Range", labelFont, labelBrush, instrumentLabelRect);
             // Also our data, if we're on advanced
             if (isAdvanced)
                 foreach (var kvp in channelRects)
                 {
+                    //dpi/96 should give us a scalar for making the boxes wider.  Unsure if it should be X or Y, but one of those
+                    
                     // We're wildly guessing here... But it's about 7px per char.  Need 8 to prevent trimming
-                    int channelLabelWidth = 8 * kvp.Key.Name.Length;
+                    //int channelLabelWidth = (int)((8 * kvp.Key.Name.Length)*(g.DpiX / 96f));
+                    int channelLabelWidth = (int)g.MeasureString(kvp.Key.Name, labelFont).Width + 4;
+
                     Rectangle channelLabelRect = new Rectangle(kvp.Value.X + kvp.Value.Width / 2 - channelLabelWidth / 2, kvp.Value.Y + rowHeight / 2 - 9, channelLabelWidth, 18);
                     Rectangle channelLabelBgRect = new Rectangle(channelLabelRect.X + 1, channelLabelRect.Y + 1, channelLabelRect.Width + 1, channelLabelRect.Height + 1);
 
@@ -390,7 +427,9 @@ namespace LuteBot.UI
             else
             {
                 // Guess at a width... this can be static
-                int draggableLabelWidth = 190;
+                //int draggableLabelWidth = (int)(190 * (g.DpiX/96f));
+                int draggableLabelWidth = (int)g.MeasureString("Song Range (Click to Drag)", labelFont).Width + 4;
+
                 Rectangle draggableLabelRect = new Rectangle(draggableRect.X + draggableRect.Width / 2 - draggableLabelWidth / 2, draggableRect.Y + rowHeight / 2 - 9, draggableLabelWidth, 18);
                 Rectangle draggableLabelBgRect = new Rectangle(draggableLabelRect.X + 1, draggableLabelRect.Y + 1, draggableLabelRect.Width + 1, draggableLabelRect.Height + 1);
                 g.FillRectangle(shadowBrush, draggableLabelBgRect);
@@ -399,10 +438,11 @@ namespace LuteBot.UI
             }
         }
 
-        private void InitLists()
+        public void InitLists()
         {
             SuspendLayout();
             textBoxNotesForChords.Text = trackSelectionManager.NumChords.ToString();
+            textBoxNotesForChords.Enabled = !ConfigManager.GetBooleanProperty(PropertyItem.ForbidsChords);
             foreach (var channel in trackSelectionManager.MidiChannels)
             { // This should help make sure we don't except if we're irresponsible with it
                 if (!trackSelectionManager.MidiChannelOffsets.ContainsKey(channel.Id))
@@ -428,7 +468,11 @@ namespace LuteBot.UI
             {
                 TrackListBox.Items.Add(track.Name, track.Active);
             }
+
+            instrumentsBox.SelectedIndex = ConfigManager.GetIntegerProperty(PropertyItem.Instrument);
+
             ResumeLayout();
+            Invalidate();
             //Refresh();
             // This is a terrible thing to do, but, there's no easy way to hook the right events to make it wait properly
             // So after a timer, we're refreshing our OffsetPanel again
@@ -461,13 +505,13 @@ namespace LuteBot.UI
         {
             trackSelectionManager.ActivateAllChannels = SelectAllChannelsCheckBox.Checked;
             ChannelsListBox.Enabled = !SelectAllChannelsCheckBox.Checked;
-            Refresh();
+            Invalidate();
         }
 
         private void ChannelListBox_ItemChecked(object sender, ItemCheckEventArgs e)
         {
             trackSelectionManager.ToggleChannelActivation(!(e.CurrentValue == CheckState.Checked), e.Index);
-            Refresh();
+            Invalidate();
         }
 
         private void SongProfileSaveButton_Click(object sender, EventArgs e)
@@ -490,20 +534,20 @@ namespace LuteBot.UI
         private void AutoActivateCheckBox_CheckedChanged(object sender, EventArgs e)
         {
             trackSelectionManager.autoLoadProfile = AutoActivateCheckBox.Checked;
-            Refresh();
+            Invalidate();
         }
 
         private void SelectAllTracksCheckBox_CheckedChanged(object sender, EventArgs e)
         {
             trackSelectionManager.ActivateAllChannels = SelectAllTracksCheckBox.Checked;
             TrackListBox.Enabled = !SelectAllTracksCheckBox.Checked;
-            Refresh();
+            Invalidate(); 
         }
 
         private void TrackListBox_ItemCheck(object sender, ItemCheckEventArgs e)
         {
             trackSelectionManager.ToggleTrackActivation(!(e.CurrentValue == CheckState.Checked), e.Index);
-            Refresh();
+            Invalidate();
         }
 
         private Size originalPanelSize;
@@ -534,7 +578,7 @@ namespace LuteBot.UI
                 //ScrollBarForcer.Location = new Point(OffsetPanel.Location.X, OffsetPanel.Location.Y + OffsetPanel.Height);
                 //ScrollBarForcer.Visible = false;
             }
-            Refresh();
+            Invalidate();
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -544,7 +588,7 @@ namespace LuteBot.UI
             {
                 trackSelectionManager.MidiChannelOffsets[channel.Id] = 0;
             }
-            Refresh();
+            Invalidate();
         }
 
         private void textBoxNotesForChords_TextChanged(object sender, EventArgs e)
@@ -554,6 +598,42 @@ namespace LuteBot.UI
                 trackSelectionManager.NumChords = v;
             }
 
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            var result = saveFileDialog1.ShowDialog(this);
+            if (result == DialogResult.OK)
+            {
+                 trackSelectionManager.SaveTrackManager(saveFileDialog1.FileName);
+            }
+        }
+
+        private void instrumentsBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            // If it's already the instrument we have as our property
+            // Then don't re-set the values
+            int currentInstrument = ConfigManager.GetIntegerProperty(PropertyItem.Instrument);
+            if (currentInstrument != instrumentsBox.SelectedIndex)
+            {
+                ConfigManager.SetProperty(PropertyItem.Instrument, instrumentsBox.SelectedIndex.ToString());
+                Instrument target = (Instrument)instrumentsBox.SelectedItem;
+
+                bool soundEffects = !target.Name.StartsWith("Mordhau", true, System.Globalization.CultureInfo.InvariantCulture);
+                ConfigManager.SetProperty(PropertyItem.SoundEffects, soundEffects.ToString());
+
+                ConfigManager.SetProperty(PropertyItem.LowestNoteId, target.LowestSentNote.ToString());
+
+                ConfigManager.SetProperty(PropertyItem.AvaliableNoteCount, target.NoteCount.ToString());
+
+                ConfigManager.SetProperty(PropertyItem.NoteCooldown, target.NoteCooldown.ToString());
+
+                ConfigManager.SetProperty(PropertyItem.LowestPlayedNote, target.LowestPlayedNote.ToString());
+
+                ConfigManager.SetProperty(PropertyItem.ForbidsChords, target.ForbidsChords.ToString());
+
+                mainForm.OnInstrumentChanged(currentInstrument);
+            }
         }
     }
 }

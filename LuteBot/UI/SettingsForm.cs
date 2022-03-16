@@ -20,112 +20,18 @@ namespace LuteBot
 {
     public partial class SettingsForm : Form
     {
-        private readonly string versionAvaliable = "A new version is avaliable to download";
-        private static string VERSION { get; set; }
-        private static string VERSION_FILE_URL = "https://raw.githubusercontent.com/Dimencia/LuteBot3/master/Version.txt";
-        private static string THREAD_URL = "https://github.com/Dimencia/LuteBot3/releases";
         private static string GUILD_URL = "https://discord.gg/4xnJVuz";
-        private string latestVersion;
-        private int Timeout = 200;
         private MidiPlayer player;
+        private LuteBotForm mainForm;
 
-        public SettingsForm(MidiPlayer player)
+        public SettingsForm(MidiPlayer player, LuteBotForm mainForm)
         {
             InitializeComponent();
             this.player = player;
-            UpdateLinkLabel.LinkArea = new LinkArea() { Length = 0, Start = 0 };
+            this.mainForm = mainForm;
             SetVersion();
             InitSettings();
-            CheckLatestVersion(Timeout);
         }
-
-        private void CheckLatestVersion(int timeout)
-        {
-            try
-            {
-                Thread latestVersionFetchThread;
-                latestVersionFetchThread = new Thread(() => DownloadUrlSynchronously(VERSION_FILE_URL));
-                latestVersionFetchThread.Start();
-                latestVersionFetchThread.Join(timeout);
-
-                if (!latestVersionFetchThread.IsAlive)
-                {
-                    try
-                    {
-                        var onlineVersion = latestVersion.Split('.').Select(s => int.Parse(s)).ToArray();
-                        var curVersion = VERSION.Split('.').Select(s => int.Parse(s)).ToArray();
-
-                        if ((onlineVersion[0] > curVersion[0]) || (onlineVersion[0] == curVersion[0] && onlineVersion[1] > curVersion[1]) || (onlineVersion[0] == curVersion[0] && onlineVersion[1] == curVersion[1] && onlineVersion[2] > curVersion[2]))
-                        {
-                            UpdateLinkLabel.Text = "New version avaliable : Click here";
-                            UpdateLinkLabel.Links.Clear();
-                            UpdateLinkLabel.Links.Add(24, 33, THREAD_URL);
-                        }
-                        else
-                        {
-                            UpdateLinkLabel.Text = "You have the latest version avaliable";
-                            UpdateLinkLabel.Links.Clear();
-                        }
-                    }
-                    catch
-                    {
-                        UpdateLinkLabel.Text = "Couldn't retrieve version. Retry";
-                        UpdateLinkLabel.Links.Clear();
-                        UpdateLinkLabel.Links.Add(27, 31, THREAD_URL);
-                    }
-                }
-                else
-                {
-                    UpdateLinkLabel.Text = "Couldn't retrieve version. Retry";
-                    UpdateLinkLabel.Links.Clear();
-                    UpdateLinkLabel.Links.Add(27, 31, THREAD_URL);
-                    latestVersionFetchThread.Abort();
-                }
-            }
-            catch
-            {
-                UpdateLinkLabel.Text = "Couldn't retrieve version. Retry";
-            }
-        }
-
-        public void DownloadUrlSynchronously(string url)
-        {
-            try
-            {
-                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12; // Didn't I already do this?
-                using (WebClient client = new WebClient())
-                {
-                    //var data = client.DownloadData(url);
-                    //string downloadString = UTF8Encoding.UTF8.GetString(data);
-                    string downloadString = client.DownloadString(url);
-                    latestVersion = downloadString.Trim();
-                }
-            }
-            catch (WebException ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
-        }
-
-        private void UpdateLinkLabel_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
-        {
-            LinkLabel.Link Link = UpdateLinkLabel.Links[UpdateLinkLabel.Links.IndexOf(e.Link)];
-            if (Link.Start == 27)
-            {
-                if (Timeout < 3000)
-                {
-
-                }
-                CheckLatestVersion(Timeout + 1000);
-            }
-            else
-            {
-                Link.Visited = true;
-                System.Diagnostics.Process.Start(e.Link.LinkData.ToString());
-            }
-        }
-
-
 
         private void InitSettings()
         {
@@ -143,6 +49,10 @@ namespace LuteBot
             NoteCooldownNumeric.Value = ConfigManager.GetIntegerProperty(PropertyItem.NoteCooldown);
             LiveMidiCheckBox.Checked = ConfigManager.GetBooleanProperty(PropertyItem.LiveMidi);
 
+            checkBoxCheckUpdates.Checked = ConfigManager.GetBooleanProperty(PropertyItem.CheckForUpdates);
+            checkBoxMajorUpdates.Checked = ConfigManager.GetBooleanProperty(PropertyItem.MajorUpdates);
+            checkBoxMinorUpdates.Checked = ConfigManager.GetBooleanProperty(PropertyItem.MinorUpdates);
+
             try
             {
                 NotesPerChordNumeric.Value = ConfigManager.GetIntegerProperty(PropertyItem.NumChords);
@@ -154,7 +64,17 @@ namespace LuteBot
                 NotesPerChordNumeric.Value = ConfigManager.GetIntegerProperty(PropertyItem.NumChords);
             }
 
+            InitInstruments();
             InitOutputDevice();
+        }
+
+        private void InitInstruments()
+        {
+            Instrument.Read();
+            instrumentsBox.DisplayMember = "Name";
+            foreach (Instrument i in Instrument.Prefabs)
+                instrumentsBox.Items.Add(i);
+            instrumentsBox.SelectedIndex = ConfigManager.GetIntegerProperty(PropertyItem.Instrument);
         }
 
         private void InitOutputDevice()
@@ -164,13 +84,16 @@ namespace LuteBot
             for (int i = 0; i < numDevices; i++)
                 outputDeviceBox.Items.Add(OutputDevice.GetDeviceCapabilities(i).name);
 
-            outputDeviceBox.SelectedIndex = ConfigManager.GetIntegerProperty(PropertyItem.OutputDevice);
+            try
+            {
+                outputDeviceBox.SelectedIndex = ConfigManager.GetIntegerProperty(PropertyItem.OutputDevice);
+            }
+            catch { } // Some people have no output devices and that's awkward
         }
 
         private void SetVersion()
         {
             VersionLabel.Text = VersionLabel.Text.Replace("[VERSION]", ConfigManager.GetVersion());
-            VERSION = ConfigManager.GetVersion();
         }
 
         private void PlaylistCheckBox_CheckedChanged(object sender, EventArgs e)
@@ -294,6 +217,35 @@ namespace LuteBot
             player.ResetDevice(); // I hate that we had to pass this just to do this, but whatever
         }
 
+        private void InstrumentsBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            // If it's already the instrument we have as our property
+            // Then don't re-set the values
+            int currentInstrument = ConfigManager.GetIntegerProperty(PropertyItem.Instrument);
+            if (currentInstrument != instrumentsBox.SelectedIndex)
+            {
+                ConfigManager.SetProperty(PropertyItem.Instrument, instrumentsBox.SelectedIndex.ToString());
+                Instrument target = (Instrument)instrumentsBox.SelectedItem;
+
+                SoundEffectsCheckBox.Checked = !target.Name.StartsWith("Mordhau", true, System.Globalization.CultureInfo.InvariantCulture);
+                ConfigManager.SetProperty(PropertyItem.SoundEffects, SoundEffectsCheckBox.Checked.ToString());
+
+                LowestNoteNumeric.Value = target.LowestSentNote;
+                ConfigManager.SetProperty(PropertyItem.LowestNoteId, target.LowestSentNote.ToString());
+
+                NoteCountNumeric.Value = target.NoteCount;
+                ConfigManager.SetProperty(PropertyItem.AvaliableNoteCount, target.NoteCount.ToString());
+
+                NoteCooldownNumeric.Value = target.NoteCooldown;
+                ConfigManager.SetProperty(PropertyItem.NoteCooldown, target.NoteCooldown.ToString());
+
+                ConfigManager.SetProperty(PropertyItem.LowestPlayedNote, target.LowestPlayedNote.ToString());
+
+                ConfigManager.SetProperty(PropertyItem.ForbidsChords, target.ForbidsChords.ToString());
+
+                mainForm.OnInstrumentChanged(currentInstrument);
+            }
+        }
 
         private void LinkLabel1_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
@@ -313,6 +265,21 @@ namespace LuteBot
         private void NotesPerChordNumeric_ValueChanged(object sender, EventArgs e)
         {
             ConfigManager.SetProperty(PropertyItem.NumChords, NotesPerChordNumeric.Value.ToString());
+        }
+
+        private void checkBoxCheckUpdates_CheckedChanged(object sender, EventArgs e)
+        {
+            ConfigManager.SetProperty(PropertyItem.CheckForUpdates, checkBoxCheckUpdates.Checked.ToString());
+        }
+
+        private void checkBoxMajorUpdates_CheckedChanged(object sender, EventArgs e)
+        {
+            ConfigManager.SetProperty(PropertyItem.MajorUpdates, checkBoxMajorUpdates.Checked.ToString());
+        }
+
+        private void checkBoxMinorUpdates_CheckedChanged(object sender, EventArgs e)
+        {
+            ConfigManager.SetProperty(PropertyItem.MinorUpdates, checkBoxMinorUpdates.Checked.ToString());
         }
     }
 }

@@ -96,7 +96,7 @@ namespace LuteBot
             this.LoadPlayListButton.Text = "Load PlayList";
             this.LoadPlayListButton.UseVisualStyleBackColor = true;
             this.LoadPlayListButton.Click += new System.EventHandler(this.LoadPlayListButton_Click);
-            //
+            // 
             // buttonExport
             // 
             this.buttonExport.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));

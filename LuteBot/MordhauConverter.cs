@@ -23,8 +23,8 @@ namespace LuteMod.Converter
         public MordhauConverter()
         {
             partition = new Partition();
-            range = 60;
-            lowNote = 24;
+            range = 48;
+            lowNote = 36;
         }
 
         public void ClearPartition()
@@ -60,6 +60,16 @@ namespace LuteMod.Converter
         public void ChangePartitionName(string name)
         {
             partition.Name = name;
+        }
+
+        public void SetPartitionTempo(int tempo)
+        {
+            partition.Tempo = tempo;
+        }
+
+        public void SetPartitionNotes(int index, List<Note> notes)
+        {
+            partition.Tracks[index].Notes = notes;
         }
 
         public bool CanMoveOctave(bool up)
