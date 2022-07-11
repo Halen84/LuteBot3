@@ -1,28 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace LuteBot.TrackSelection
 {
-    public class TrackItem
+// TODO: I'd like to just remove this entirely, but that will be real annoying; I can't just rename, and have to hunt down >36 spots to fix
+    public class TrackItem : MidiChannelItem
     {
-        private string name;
-        private bool active;
-        private int id;
-
-        public string Name { get => name; set => name = value; }
-        public bool Active { get => active; set => active = value; }
-        public int Id { get => id; set => id = value; }
 
         public TrackItem() { }
 
-        public TrackItem(TrackItem old)
+        public TrackItem(TrackItem old) : base(old)
         {
-            this.Name = old.Name;
-            this.Active = old.Active;
-            this.Id = old.Id;
         }
+
+        public TrackItem(SimpleMidiChannelItem old) : base(old) { }
+
+        public TrackItem(MidiChannelItem old) : base(old) { }
     }
 }

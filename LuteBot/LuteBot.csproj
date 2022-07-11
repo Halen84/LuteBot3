@@ -12,7 +12,7 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>LuteBot</RootNamespace>
     <AssemblyName>LuteBot</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <TargetFrameworkProfile>
@@ -74,6 +74,9 @@
   <PropertyGroup>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject />
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="CefSharp, Version=93.1.111.0, Culture=neutral, PublicKeyToken=40c4b6fc221f4138, processorArchitecture=MSIL">
       <HintPath>..\packages\CefSharp.Common.93.1.111\lib\net452\CefSharp.dll</HintPath>
@@ -130,11 +133,18 @@
     <Compile Include="DiscordAuthForm.Designer.cs">
       <DependentUpon>DiscordAuthForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="Extensions.cs" />
     <Compile Include="GuildSong.cs" />
     <Compile Include="IO\KB\Keybinds.cs" />
     <Compile Include="LiveInput\Midi\LiveMidiManager.cs" />
     <Compile Include="LiveInput\Midi\MidiDeviceItem.cs" />
     <Compile Include="MordhauConverter.cs" />
+    <Compile Include="MordhauPathInputForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MordhauPathInputForm.Designer.cs">
+      <DependentUpon>MordhauPathInputForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="OnlineSync\AsynchronousClient.cs" />
     <Compile Include="OnlineSync\AsynchronousSocketListener.cs" />
     <Compile Include="OnlineSync\OnlineSyncManager.cs" />
@@ -194,6 +204,12 @@
     </Compile>
     <Compile Include="UI\KeyBindingForm.Designer.cs">
       <DependentUpon>KeyBindingForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\NeuralNetworkForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\NeuralNetworkForm.Designer.cs">
+      <DependentUpon>NeuralNetworkForm.cs</DependentUpon>
     </Compile>
     <Compile Include="UI\PartitionAdjustmentForm.cs">
       <SubType>Form</SubType>
@@ -276,6 +292,9 @@
     <EmbeddedResource Include="DiscordAuthForm.resx">
       <DependentUpon>DiscordAuthForm.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="MordhauPathInputForm.resx">
+      <DependentUpon>MordhauPathInputForm.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="PartitionsForm.resx">
       <DependentUpon>PartitionsForm.cs</DependentUpon>
     </EmbeddedResource>
@@ -296,6 +315,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="UI\LuteBotForm.resx">
       <DependentUpon>LuteBotForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UI\NeuralNetworkForm.resx">
+      <DependentUpon>NeuralNetworkForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="UI\OnlineSyncForm.resx">
       <DependentUpon>OnlineSyncForm.cs</DependentUpon>
@@ -336,13 +358,16 @@
     </EmbeddedResource>
     <None Include="app.config" />
     <None Include="app.manifest" />
+    <None Include="channelNeural">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="LuteMod\AutoLoaderWindowsClient.pak">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Include="LuteMod\FLuteMod_1.3.pak">
+    <None Include="LuteBot_TemporaryKey.pfx" />
+    <None Include="LuteMod\FLuteMod_1.42.pak">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Include="LuteBot_TemporaryKey.pfx" />
     <None Include="LuteMod\PartitionIndex[0].sav">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
@@ -380,10 +405,17 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\SimpleML\SimpleML\SimpleML.csproj">
+      <Project>{ed348757-f2a0-4aa1-a421-1168617ad6c1}</Project>
+      <Name>SimpleML</Name>
+    </ProjectReference>
     <ProjectReference Include="..\LuteBotUpdater\LuteBotUpdater.csproj">
       <Project>{57807dcc-ba9b-45ed-b42a-e61f2ca9d882}</Project>
       <Name>LuteBotUpdater</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <WCFMetadata Include="Connected Services\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">

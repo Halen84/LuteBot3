@@ -19,6 +19,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using SimpleML;
 
 namespace LuteBot
 {
@@ -32,7 +33,7 @@ namespace LuteBot
             this.FormClosing += PartitionsForm_FormClosing1;
             listBoxPartitions.MouseMove += ListBoxPartitions_MouseMove;
 
-            if (!LuteBotForm.IsLuteModInstalled())
+            if (!LuteBotForm.luteBotForm.IsLuteModInstalled())
             {
                 var popup = new PopupForm("Install LuteMod", "Would you like to update/install LuteMod?", "LuteMod is a Mordhau Mod that lets you manage your songs in game and move freely, and play duets with lute and flute\n\nLuteMod was not detected as installed, or an old version was detected\n\nThanks to Monty for LuteMod, and cswic for the autoloader\n\nFor more information, see:",
                 new Dictionary<string, string>() {
@@ -44,14 +45,14 @@ namespace LuteBot
                 }, MessageBoxButtons.YesNo);
                 popup.ShowDialog(this);
                 if (popup.DialogResult == DialogResult.Yes)
-                    LuteBotForm.InstallLuteMod();
+                    LuteBotForm.luteBotForm.InstallLuteMod();
                 else
                     Hide();
             }
             RefreshPartitionList();
         }
 
-        private static readonly string partitionMidiPath = Path.Combine(LuteBotForm.lutebotPath, "Partition MIDIs");
+        public static readonly string partitionMidiPath = Path.Combine(LuteBotForm.lutebotPath, "Partition MIDIs");
 
         private void ListBoxPartitions_MouseMove(object sender, MouseEventArgs e)
         {
@@ -88,7 +89,7 @@ namespace LuteBot
         }
 
         private MidiPlayer player;
-        private PartitionIndex index;
+        public PartitionIndex index { get; private set; }
         private TrackSelectionManager tsm;
 
         private void RefreshPartitionList()
@@ -127,12 +128,12 @@ namespace LuteBot
 
                 if (listBoxPartitions.SelectedIndices.Count == 1)
                 {
-                    string midiPath = Path.Combine(partitionMidiPath, listBoxPartitions.SelectedItems[0] + ".mid");
-                    if (File.Exists(midiPath))
-                    {
-                        MenuItem editItem = indexContextMenu.MenuItems.Add("Load " + name);
-                        editItem.Click += EditItem_Click;
-                    }
+                    //string midiPath = Path.Combine(partitionMidiPath, listBoxPartitions.SelectedItems[0] + ".mid");
+                    //if (File.Exists(midiPath))
+                    //{
+                    MenuItem editItem = indexContextMenu.MenuItems.Add("Load " + name);
+                    editItem.Click += EditItem_Click;
+                    //}
                 }
                 
                 listBoxPartitions.ContextMenu = indexContextMenu; // TODO: I'd love to make it popup at the selected item, not at mouse pos, but whatever
@@ -147,7 +148,10 @@ namespace LuteBot
         private void EditItem_Click(object sender, EventArgs e)
         {
             string midiPath = Path.Combine(partitionMidiPath, listBoxPartitions.SelectedItems[0] + ".mid");
-            LuteBotForm.luteBotForm.LoadHelper(midiPath);
+            if (File.Exists(midiPath))
+                LuteBotForm.luteBotForm.LoadHelper(midiPath);
+            else
+                tsm.LoadSavFiles(SaveManager.SaveFilePath, (string)listBoxPartitions.SelectedItems[0]);
         }
 
         private void PartitionIndexBox_DragOver(object sender, DragEventArgs e)
@@ -289,7 +293,7 @@ namespace LuteBot
         private void savePartitionsButton_Click(object sender, EventArgs e)
         {
 
-            if (tsm.MidiTracks.Where(t => t.Active).Count() > 0)
+            if (tsm.MidiTracks.Values.Where(t => t.Active).Count() > 0)
             {
                 var namingForm = new TrackNamingForm(Path.GetFileNameWithoutExtension(tsm.FileName));
                 namingForm.ShowDialog(this);
@@ -348,9 +352,10 @@ namespace LuteBot
                                         converter.LowNote = ConfigManager.GetIntegerProperty(PropertyItem.LowestPlayedNote);
                                         converter.IsConversionEnabled = true;
                                         converter.SetDivision(player.sequence.Division);
+                                        converter.SetPartitionTempo(player.sequence.FirstTempo);
                                         converter.AddTrack();
-                                        converter.SetEnabledTracksInTrack(i, tsm.MidiTracks);
-                                        converter.SetEnabledMidiChannelsInTrack(i, tsm.MidiChannels);
+                                        converter.SetEnabledTracksInTrack(i, tsm.MidiTracks.Values.ToList());
+                                        converter.SetEnabledMidiChannelsInTrack(i, tsm.MidiChannels.Values.ToList());
 
                                         converter.FillTrack(i, player.ExtractMidiContent());
                                     }
@@ -408,8 +413,8 @@ namespace LuteBot
                     trackConverter.IsConversionEnabled = true;
                     trackConverter.SetDivision(player.sequence.Division); // This one could be weird
                     trackConverter.AddTrack();
-                    trackConverter.SetEnabledTracksInTrack(trackConverter.GetTrackCount() - 1, tsm.MidiTracks);
-                    trackConverter.SetEnabledMidiChannelsInTrack(trackConverter.GetTrackCount() - 1, tsm.MidiChannels);
+                    trackConverter.SetEnabledTracksInTrack(trackConverter.GetTrackCount() - 1, tsm.MidiTracks.Values.ToList());
+                    trackConverter.SetEnabledMidiChannelsInTrack(trackConverter.GetTrackCount() - 1, tsm.MidiChannels.Values.ToList());
 
                     trackConverter.FillTrack(trackConverter.GetTrackCount() - 1, player.ExtractMidiContent());
                 }
@@ -452,5 +457,32 @@ namespace LuteBot
             }
         }
 
+        private async void saveMultipleSongsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            try // async void won't propagate errors, always try/catch
+            {
+                openMidiFileDialog.Title = "Auto-Convert MIDI files to Partitions";
+                if (openMidiFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    var filenames = openMidiFileDialog.FileNames;
+                    foreach (var f in filenames)
+                    {
+                        await LuteBotForm.luteBotForm.LoadHelperAsync(f);
+                        savePartitionsButton_Click(null, null);
+                    }
+                }
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
+        }
+
+        private async void trainToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            var trainingForm = new NeuralNetworkForm(tsm, this);
+            trainingForm.ShowDialog(this);
+
+        }
     }
 }

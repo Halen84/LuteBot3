@@ -87,7 +87,9 @@ namespace LuteBot
         static LiveMidiManager liveMidiManager;
         static KeyBindingForm keyBindingForm = null;
 
-        private static string lutemodPakName = "FLuteMod_1.3.pak"; // TODO: Get this dynamically or something.  Really, get the file itself from github, but this will do for now
+        private static string lutemodPakName = "FLuteMod_1.42.pak"; // TODO: Get this dynamically or something.  Really, get the file itself from github, but this will do for now
+        private static int lutemodVersion1 = 1;
+        private static int lutemodVersion2 = 42;
         private static string loaderPakName = "AutoLoaderWindowsClient.pak";
         private static string partitionIndexName = "PartitionIndex[0].sav";
         private static string loaderString1 = @"[/AutoLoader/BP_AutoLoaderActor.BP_AutoLoaderActor_C]
@@ -99,7 +101,7 @@ ModStartupMap=/AutoLoader/ClientModNew_MainMenu.ClientModNew_MainMenu";
 GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_MainMenu";
         private static string removeFromPaks = "zz_clientmodloadingmap_425.pak";
 
-        private static string MordhauPakPath = GetPakPath();
+        private static string MordhauPakPath;
 
         public static LuteBotVersion LatestVersion = null;
 
@@ -107,6 +109,9 @@ GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_Main
         {
             luteBotForm = this;
             InitializeComponent();
+            hotkeyManager = new HotkeyManager();
+
+            MordhauPakPath = GetPakPath();
 
             onlineManager = new OnlineSyncManager();
             playList = new PlayListManager();
@@ -116,7 +121,7 @@ GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_Main
             soundBoardManager.SoundBoardTrackRequest += new EventHandler<SoundBoardEventArgs>(HandleSoundBoardTrackRequest);
             player = new MidiPlayer(trackSelectionManager);
             player.SongLoaded += new EventHandler<AsyncCompletedEventArgs>(PlayerLoadCompleted);
-            hotkeyManager = new HotkeyManager();
+            
             hotkeyManager.NextKeyPressed += new EventHandler(NextButton_Click);
             hotkeyManager.PlayKeyPressed += new EventHandler(PlayButton_Click);
             hotkeyManager.StopKeyPressed += new EventHandler(StopButton_Click);
@@ -275,6 +280,8 @@ GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_Main
                                             updateType = PropertyItem.MinorUpdates;
                                         break;
                                     }
+                                    else if (LatestVersion.VersionArray[i] < currentVersion[i])
+                                        break;// Don't keep looking if we're already out of date
                                 }
                                 else
                                 {
@@ -365,8 +372,19 @@ GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_Main
             }
         }
 
-        public static bool IsLuteModInstalled()
+        public bool IsLuteModInstalled()
         {
+            if (string.IsNullOrWhiteSpace(MordhauPakPath))
+            {
+                return true; // They have disabled installs or otherwise didn't input the path correctly, so don't check
+            }
+            if (!IsMordhauPakPathValid())
+            {
+                MordhauPakPath = GetMordhauPathFromPrompt();
+                if (string.IsNullOrWhiteSpace(MordhauPakPath))
+                    return true;
+                return IsLuteModInstalled();
+            }
             // Just check for the lutemod pak in CustomPaks, if they messed it up beyond that they can click the install button themselves, this is just to prompt them to install if necessary
             var pakPath = Path.Combine(MordhauPakPath, lutemodPakName);
             if (File.Exists(pakPath))
@@ -387,18 +405,39 @@ GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_Main
                 }
             }
             else
-                return false;
+            {
+                try
+                {
+                    // Check if they have a newer version instead
+                    Directory.CreateDirectory(MordhauPakPath); // Prevent crash if it doesn't exist
+                    foreach (var f in Directory.GetFiles(MordhauPakPath))
+                    {
+                        Match m = Regex.Match(Path.GetFileName(f), @"LuteMod_([0-9])\.([0-9]*)");
+                        if (m.Success)
+                        {
+                            return int.Parse(m.Groups[1].Value) >= lutemodVersion1 && int.Parse(m.Groups[2].Value) >= lutemodVersion2;
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    new PopupForm("Mordhau Detection Failed", $"Could not access the Mordhau path at {MordhauPakPath}", $"If you wish to enable LuteMod installs, choose Settings -> Set Mordhau Path\n\n{e.Message}\n{e.StackTrace}", new Dictionary<string, string>() { { "LuteMod Install", "https://mordhau-bards-guild.fandom.com/wiki/LuteMod#Install" }, { "The Bard's Guild Discord", "https://discord.gg/4xnJVuz" } })
+                    .ShowDialog();
+                    installLuteModToolStripMenuItem.Enabled = false;
+                    return true;
+                }
+            }
+            return false;
         }
 
-        public static void InstallLuteMod()
+        public void InstallLuteMod()
         {
             // This may require admin access.  TODO: Detect if we need it and prompt them for it
             var pakPath = MordhauPakPath;
-            if (string.IsNullOrWhiteSpace(pakPath))
+            if (!IsMordhauPakPathValid())
             { // Shouldn't really happen.  More likely is they have mordhau installed in more than one place and I pick the wrong one.  Might need to let them choose the location
-
-                new PopupForm("Install Failed", $"Could not find Steam path", "LuteMod auto install not available\nPlease install LuteMod manually using the following instructions:", new Dictionary<string, string>() { { "Manual Install", "https://mordhau-bards-guild.fandom.com/wiki/LuteMod#Install" }, { "The Bard's Guild Discord", "https://discord.gg/4xnJVuz" } })
-                    .ShowDialog();
+                MordhauPakPath = GetMordhauPathFromPrompt();
+                InstallLuteMod(); // Then try again after setting it
                 return;
             }
 
@@ -438,7 +477,7 @@ GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_Main
                 var files = Directory.GetFiles(pakPath);
                 foreach (var f in files)
                 {
-                    var name = Path.GetFileName(f);
+                    var name = Path.GetFileName(f); // TODO: Only do this if it's older than the current version
                     if (Regex.IsMatch(name.ToLower(), "^f?-?lutemod") && name != lutemodPakName)
                     {
                         File.Delete(f);
@@ -467,9 +506,30 @@ GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_Main
             {
                 var content = File.ReadAllText(gameIniPath);
 
+                // So if they already have other mods, and we add a second set of [/Autoloader/...LoaderActor_C], Mordhau combines them together after
+                // So it ends up with just one heading, then multiple things below it
+                // We need to handle this a bit more robustly and look for lines 1 and 2 of loaderstring1
+                // If either doesn't exist, we write line 0, then the ones that don't exist
 
-                if (!content.Contains(loaderString1))
-                    content = content + "\n" + loaderString1;
+                var loaderLines = loaderString1.Replace("\r\n", "\n").Split('\n');
+                bool replace1 = false;
+                string loaderString1Modified = loaderLines[0] + "\n";
+
+                if(!content.Contains(loaderLines[1]))
+                {
+                    replace1 = true;
+                    loaderString1Modified += loaderLines[1] + "\n";
+                }
+                if (!content.Contains(loaderLines[2]))
+                {
+                    replace1 = true;
+                    loaderString1Modified += loaderLines[2] + "\n";
+                }
+                
+
+
+                if (replace1)
+                    content = content + "\n" + loaderString1Modified;
                 if (!content.Contains(loaderString2))
                     content = content + "\n" + loaderString2;
 
@@ -526,10 +586,17 @@ GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_Main
                     .ShowDialog();
         }
 
-        private static string GetPakPath()
+        private string GetPakPath()
         {
             try
             {
+                string originalPath = ConfigManager.GetProperty(PropertyItem.MordhauPakPath);
+                if(IsMordhauPakPathValid(originalPath))
+                {
+                    return originalPath;
+                }
+
+
                 string mordhauId = "629760";
                 string steam32 = "SOFTWARE\\VALVE\\";
                 string steam64 = "SOFTWARE\\Wow6432Node\\Valve\\";
@@ -623,7 +690,39 @@ GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_Main
                 MessageBox.Show($"General failure... \n{e.Message}\n{e.StackTrace}");
             }
 
-            return string.Empty;
+            return GetMordhauPathFromPrompt();
+        }
+
+        private string GetMordhauPathFromPrompt()
+        {
+            var inputForm = new MordhauPathInputForm(MordhauPakPath);
+            inputForm.ShowDialog(this);
+
+            if (inputForm.result == DialogResult.OK && inputForm.path != string.Empty && File.Exists(inputForm.path))
+            {
+                installLuteModToolStripMenuItem.Enabled = true;
+                var result = Path.Combine(Path.GetDirectoryName(inputForm.path), "Mordhau", "Content", "CustomPaks");
+                Directory.CreateDirectory(result);
+                ConfigManager.SetProperty(PropertyItem.MordhauPakPath, result);
+                installLuteModToolStripMenuItem.Enabled = true;
+                return result;
+            }
+            else
+            {
+                if (!IsMordhauPakPathValid())
+                    installLuteModToolStripMenuItem.Enabled = false;
+                return MordhauPakPath;
+            }
+        }
+
+        public static bool IsMordhauPakPathValid(string path = null)
+        {
+            path = path ?? MordhauPakPath;
+            // See if the mordhau exe is where it should be
+            if (string.IsNullOrWhiteSpace(path))
+                return false;
+            var exePath = Path.Combine(path, ".." + Path.DirectorySeparatorChar, ".." + Path.DirectorySeparatorChar, ".." + Path.DirectorySeparatorChar, "Mordhau.exe");
+            return File.Exists(exePath);
         }
 
         // Are arrow keys valid?  These names are all good WinForms names, are they good Mordhau names?  
@@ -712,45 +811,61 @@ GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_Main
             }
         }
 
+        private TaskCompletionSource<bool> asyncLoadTask = null;
+
         private void PlayerLoadCompleted(object sender, AsyncCompletedEventArgs e)
         {
+            SuspendLayout();
             if (e.Error == null)
             {
-                StopButton_Click(null, null);
-                PlayButton.Enabled = true;
-                MusicProgressBar.Enabled = true;
-                StopButton.Enabled = true;
-
-                trackSelectionManager.UnloadTracks();
-                if (player.GetType() == typeof(MidiPlayer))
+                if (!skipUI)
                 {
-                    MidiPlayer midiPlayer = player as MidiPlayer;
-                    trackSelectionManager.LoadTracks(midiPlayer.GetMidiChannels(), midiPlayer.GetMidiTracks(), trackSelectionManager);
-                    trackSelectionManager.FileName = currentTrackName;
+                    StopButton_Click(null, null);
+                    PlayButton.Enabled = true;
+                    MusicProgressBar.Enabled = true;
+                    StopButton.Enabled = true;
                 }
 
-                if (trackSelectionManager.autoLoadProfile)
-                {
-                    trackSelectionManager.LoadTrackManager();
-                }
+                    trackSelectionManager.UnloadTracks();
+                    if (player.GetType() == typeof(MidiPlayer))
+                    {
+                        MidiPlayer midiPlayer = player as MidiPlayer;
+                        trackSelectionManager.LoadTracks(midiPlayer.GetMidiChannels(), midiPlayer.GetMidiTracks());
+                        trackSelectionManager.FileName = currentTrackName;
+                    }
 
-                MusicProgressBar.Value = 0;
-                MusicProgressBar.Maximum = player.GetLength();
-                StartLabel.Text = TimeSpan.FromSeconds(0).ToString(@"mm\:ss");
-                EndTimeLabel.Text = player.GetFormattedLength();
-                CurrentMusicLabel.Text = musicNameLabelHeader + Path.GetFileNameWithoutExtension(currentTrackName);
-                if (autoplay)
+                    if (trackSelectionManager.autoLoadProfile)
+                    {
+                        trackSelectionManager.LoadTrackManager();
+                    }
+                if (!skipUI)
                 {
-                    Play();
-                    autoplay = false;
+                    MusicProgressBar.Value = 0;
+                    MusicProgressBar.Maximum = player.GetLength();
+                    StartLabel.Text = TimeSpan.FromSeconds(0).ToString(@"mm\:ss");
+                    EndTimeLabel.Text = player.GetFormattedLength();
+                    CurrentMusicLabel.Text = musicNameLabelHeader + Path.GetFileNameWithoutExtension(currentTrackName);
+                    if (autoplay)
+                    {
+                        Play();
+                        autoplay = false;
+                    }
+                    //if (trackSelectionForm != null && !trackSelectionForm.IsDisposed && trackSelectionForm.IsHandleCreated)
+                    //    trackSelectionForm.Invoke((MethodInvoker)delegate
+                    //    {
+                    //        trackSelectionForm.Invalidate(); //trackSelectionForm.RefreshOffsetPanel();
+                    //    }); // Invoking just in case this is on a diff thread somehow
                 }
-                if (trackSelectionForm != null && !trackSelectionForm.IsDisposed && trackSelectionForm.IsHandleCreated)
-                    trackSelectionForm.Invoke((MethodInvoker)delegate { trackSelectionForm.Invalidate(); trackSelectionForm.RefreshOffsetPanel(); }); // Invoking just in case this is on a diff thread somehow
             }
             else
             {
                 MessageBox.Show(e.Error.Message + " in " + e.Error.Source + e.Error.TargetSite + "\n" + e.Error.InnerException + "\n" + e.Error.StackTrace);
             }
+            if (asyncLoadTask != null)
+            {
+                asyncLoadTask.SetResult(e.Error != null);
+            }
+            ResumeLayout();
         }
 
         private void ToggleTrack(object sender, TrackItem e)
@@ -1001,6 +1116,7 @@ GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_Main
             }
         }
 
+
         private void LoadHelper(PlayListItem item)
         {
             player.LoadFile(item.Path);
@@ -1017,6 +1133,20 @@ GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_Main
         {
             player.LoadFile(path);
             currentTrackName = path;
+        }
+
+        public static bool skipUI = false;
+
+        public async Task LoadHelperAsync(string path, bool skipUI = false)
+        {
+            LuteBotForm.skipUI = skipUI;
+            asyncLoadTask = new TaskCompletionSource<bool>();
+            player.LoadFile(path);
+            currentTrackName = path;
+
+            await asyncLoadTask.Task;
+            asyncLoadTask = null;
+            LuteBotForm.skipUI = false;
         }
 
         private void PlayButton_Click(object sender, EventArgs e)
@@ -1226,7 +1356,8 @@ GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_Main
 
             // I don't think getting the settings is that easy but we'll try
             // Oh hey it can be.
-            var data = trackSelectionManager.GetTrackSelectionData();
+            var instrumentId = ConfigManager.GetIntegerProperty(PropertyItem.Instrument);
+            var data = trackSelectionManager.GetTrackSelectionData(instrumentId);
             player.LoadFile(currentTrackName);
             trackSelectionManager.SetTrackSelectionData(data);
             //trackSelectionManager.SaveTrackManager(); // Don't save when we reload, that's bad.  
@@ -1866,6 +1997,12 @@ GameDefaultMap=/Game/Mordhau/Maps/ClientModMap/ClientMod_MainMenu.ClientMod_Main
         private async void checkInstallUpdatesToolStripMenuItem_Click(object sender, EventArgs e)
         {
             await CheckUpdates(true);
+        }
+
+        private void setMordhauPathToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            MordhauPakPath = GetMordhauPathFromPrompt();
+            ConfigManager.SetProperty(PropertyItem.MordhauPakPath, MordhauPakPath);
         }
     }
 }
